@@ -75,18 +75,18 @@ export function MonthGrid({
               aria-pressed={isSelected}
               className={cn(
                 'group relative flex h-[52px] flex-col items-center justify-center rounded-xl transition-colors sm:h-[58px]',
-                isSelected ? 'bg-white/[0.055]' : 'hover:bg-white/[0.035]',
+                isSelected ? 'bg-fg/[0.055]' : 'hover:bg-fg/[0.035]',
               )}
             >
               <span
                 className={cn(
                   'grid h-8 w-8 place-items-center rounded-full text-[12px] font-extrabold transition-colors',
                   isSelected
-                    ? 'bg-coral text-ink shadow-[0_4px_14px_-4px_rgba(255,107,74,0.8)]'
+                    ? 'bg-coral text-ink shadow-[0_4px_14px_-4px_rgba(0,0,0,0.25)]'
                     : isToday
                       ? 'border border-coral/60 text-coral'
                       : inMonth
-                        ? 'text-cream'
+                        ? 'text-fg'
                         : 'text-muted/30',
                 )}
               >

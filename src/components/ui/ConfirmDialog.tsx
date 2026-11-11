@@ -76,7 +76,7 @@ export function ConfirmDialog({
       }
     >
       {children}
-      {error ? <p className="mt-3 text-sm font-semibold text-[#FF9DB6]">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm font-semibold text-punch">{error}</p> : null}
     </Sheet>
   )
 }

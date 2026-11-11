@@ -30,6 +30,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ProfileForm } from '@/components/profile/ProfileForm'
 import { InstallCard } from '@/components/settings/InstallCard'
+import { AppearanceCard } from '@/components/settings/AppearanceCard'
 import { AccountSettingsPage } from './AccountSettingsPage'
 
 function SectionHeading({
@@ -44,7 +45,7 @@ function SectionHeading({
   return (
     <div className="mb-3 flex items-end justify-between gap-3">
       <div>
-        <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-cream">{title}</h2>
+        <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">{title}</h2>
         {description ? <p className="mt-1 text-xs font-medium text-muted">{description}</p> : null}
       </div>
       {action}
@@ -69,11 +70,11 @@ function ActionRow({
 }) {
   const content = (
     <>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-muted">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] text-muted">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-extrabold text-cream">{title}</span>
+        <span className="block text-sm font-extrabold text-fg">{title}</span>
         {detail ? <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">{detail}</span> : null}
       </span>
       {trailing ?? (onClick ? <ChevronRight className="h-4 w-4 shrink-0 text-muted" /> : null)}
@@ -89,7 +90,7 @@ function ActionRow({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full items-center gap-3.5 p-4 text-left transition hover:bg-white/[0.03] disabled:opacity-50"
+      className="flex w-full items-center gap-3.5 p-4 text-left transition hover:bg-fg/[0.03] disabled:opacity-50"
     >
       {content}
     </button>
@@ -180,7 +181,7 @@ function GuestSettingsPage() {
           <Cloud className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-extrabold text-cream">Sync across your devices</span>
+          <span className="block text-sm font-extrabold text-fg">Sync across your devices</span>
           <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
             Sign in or create an account. Your offline profiles stay right here.
           </span>
@@ -188,7 +189,9 @@ function GuestSettingsPage() {
         <ChevronRight className="h-4 w-4 shrink-0 text-sky/70 transition group-hover:translate-x-0.5" />
       </Link>
 
-      <section className="surface relative overflow-hidden p-4">
+      <AppearanceCard />
+
+      <section className="surface relative mt-8 overflow-hidden p-4">
         <div
           className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full blur-3xl"
           style={{ backgroundColor: `${profile.color}22` }}
@@ -198,7 +201,7 @@ function GuestSettingsPage() {
           <Avatar name={profile.name} color={profile.color} size="lg" />
           <div className="min-w-0 flex-1">
             <p className="eyebrow">Current profile</p>
-            <h2 className="break-words font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] text-cream">
+            <h2 className="break-words font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] text-fg">
               {profile.name}
             </h2>
             <p className="mt-1 text-[11px] font-bold text-muted">
@@ -232,7 +235,7 @@ function GuestSettingsPage() {
           }
         />
 
-        <div className="surface divide-y divide-white/[0.06] overflow-hidden">
+        <div className="surface divide-y divide-fg/[0.06] overflow-hidden">
           {(profiles ?? []).map((item) => {
             const active = item.id === profile.id
             return (
@@ -245,12 +248,12 @@ function GuestSettingsPage() {
                     toast(`Switched to ${item.name}.`)
                   }
                 }}
-                className="flex w-full items-center gap-3.5 p-3.5 text-left transition hover:bg-white/[0.03]"
+                className="flex w-full items-center gap-3.5 p-3.5 text-left transition hover:bg-fg/[0.03]"
                 aria-current={active ? 'true' : undefined}
               >
                 <Avatar name={item.name} color={item.color} size="md" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-extrabold text-cream">{item.name}</span>
+                  <span className="block truncate text-sm font-extrabold text-fg">{item.name}</span>
                   <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
                     {active ? 'Active profile' : 'Tap to switch'}
                   </span>
@@ -279,13 +282,13 @@ function GuestSettingsPage() {
           description="A safety net for everything on board — tickets included."
         />
 
-        <div className="surface divide-y divide-white/[0.06] overflow-hidden">
+        <div className="surface divide-y divide-fg/[0.06] overflow-hidden">
           <div className="flex items-center gap-3.5 p-4">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-mint">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] text-mint">
               <HardDrive className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-extrabold text-cream">Stored on this device</p>
+              <p className="text-sm font-extrabold text-fg">Stored on this device</p>
               <p className="mt-0.5 text-[11px] font-medium text-muted">
                 {usage?.usage ? `${formatBytes(usage.usage)} used` : 'Local browser storage'}
               </p>
@@ -346,7 +349,7 @@ function GuestSettingsPage() {
               <Trash2 className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-extrabold text-cream">Delete this profile</span>
+              <span className="block text-sm font-extrabold text-fg">Delete this profile</span>
               <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
                 Remove {profile.name}'s trips, plans, photos, and tickets from this device.
               </span>
@@ -356,10 +359,10 @@ function GuestSettingsPage() {
         </div>
       </section>
 
-      <footer className="mt-10 flex flex-col items-center gap-2 border-t border-white/[0.06] pt-8 pb-2 text-center">
+      <footer className="mt-10 flex flex-col items-center gap-2 border-t border-fg/[0.06] pt-8 pb-2 text-center">
         <Wordmark markSize={26} />
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted/50">
-          Version 1.1 · Local-first, good-days-first
+          Version 1.2 · Local-first, good-days-first
         </p>
       </footer>
 
@@ -432,7 +435,7 @@ function GuestSettingsPage() {
         destructive
         onConfirm={restore}
       >
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+        <div className="rounded-2xl border border-fg/[0.08] bg-fg/[0.025] p-4">
           <p className="text-sm font-semibold leading-relaxed text-muted">
             The backup will be loaded exactly as it was exported. Anything added since then will be
             replaced.

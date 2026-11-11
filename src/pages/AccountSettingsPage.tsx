@@ -28,6 +28,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Sheet } from '@/components/ui/Sheet'
 import { ProfileForm } from '@/components/profile/ProfileForm'
 import { InstallCard } from '@/components/settings/InstallCard'
+import { AppearanceCard } from '@/components/settings/AppearanceCard'
 
 interface GuestStats {
   trips: number
@@ -120,7 +121,9 @@ export function AccountSettingsPage() {
         description={user.email}
       />
 
-      <section className="surface relative overflow-hidden p-4">
+      <AppearanceCard />
+
+      <section className="surface relative mt-8 overflow-hidden p-4">
         <div
           className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full blur-3xl"
           style={{ backgroundColor: `${user.color}22` }}
@@ -130,7 +133,7 @@ export function AccountSettingsPage() {
           <Avatar name={user.displayName} color={user.color} size="lg" />
           <div className="min-w-0 flex-1">
             <p className="eyebrow">Signed in</p>
-            <h2 className="break-words font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] text-cream">
+            <h2 className="break-words font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] text-fg">
               {user.displayName}
             </h2>
           </div>
@@ -147,7 +150,7 @@ export function AccountSettingsPage() {
 
       <section className="mt-8">
         <div className="mb-3">
-          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-cream">Sync</h2>
+          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">Sync</h2>
           <p className="mt-1 text-xs font-medium text-muted">
             Your account lives on your own server and is cached here for offline use.
           </p>
@@ -156,7 +159,7 @@ export function AccountSettingsPage() {
         <div className="surface p-4">
           <div className="flex items-start gap-3.5">
             <span
-              className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] ${syncTone}`}
+              className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] ${syncTone}`}
             >
               <SyncIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             </span>
@@ -181,14 +184,14 @@ export function AccountSettingsPage() {
             </button>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/[0.06] pt-3">
-            <div className="rounded-xl bg-white/[0.025] px-3 py-2">
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-fg/[0.06] pt-3">
+            <div className="rounded-xl bg-fg/[0.025] px-3 py-2">
               <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted/60">Trips</p>
-              <p className="font-display text-lg font-extrabold text-cream">{tripCount}</p>
+              <p className="font-display text-lg font-extrabold text-fg">{tripCount}</p>
             </div>
-            <div className="rounded-xl bg-white/[0.025] px-3 py-2">
+            <div className="rounded-xl bg-fg/[0.025] px-3 py-2">
               <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-muted/60">Plans</p>
-              <p className="font-display text-lg font-extrabold text-cream">{planCount}</p>
+              <p className="font-display text-lg font-extrabold text-fg">{planCount}</p>
             </div>
           </div>
         </div>
@@ -197,7 +200,7 @@ export function AccountSettingsPage() {
       {guestProfiles && guestProfiles.length > 0 ? (
         <section className="mt-8">
           <div className="mb-3">
-            <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-cream">
+            <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">
               Bring your offline plans along
             </h2>
             <p className="mt-1 text-xs font-medium leading-relaxed text-muted">
@@ -205,14 +208,14 @@ export function AccountSettingsPage() {
             </p>
           </div>
 
-          <div className="surface divide-y divide-white/[0.06] overflow-hidden">
+          <div className="surface divide-y divide-fg/[0.06] overflow-hidden">
             {guestProfiles.map((profile) => {
               const stats = guestStats[profile.id] ?? { trips: 0, plans: 0 }
               return (
                 <div key={profile.id} className="flex items-center gap-3.5 p-3.5">
                   <Avatar name={profile.name} color={profile.color} size="md" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-extrabold text-cream">{profile.name}</p>
+                    <p className="truncate text-sm font-extrabold text-fg">{profile.name}</p>
                     <p className="mt-0.5 text-[10px] font-bold text-muted">
                       {pluralize(stats.trips, 'trip')} · {pluralize(stats.plans, 'plan')}
                     </p>
@@ -235,14 +238,14 @@ export function AccountSettingsPage() {
 
       <section className="mt-8">
         <div className="mb-3">
-          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-cream">Where it lives</h2>
+          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">Where it lives</h2>
         </div>
         <div className="surface flex items-start gap-3.5 p-4">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-mint">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] text-mint">
             <Database className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-extrabold text-cream">Your self-hosted PostgreSQL database</p>
+            <p className="text-sm font-extrabold text-fg">Your self-hosted PostgreSQL database</p>
             <p className="mt-1 text-[11px] font-medium leading-relaxed text-muted">
               Plans, trips, and ticket files are stored per account on the server. A cached copy stays
               here so Jaunt keeps working offline.
@@ -255,7 +258,7 @@ export function AccountSettingsPage() {
 
       <section className="mt-8">
         <div className="mb-3">
-          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-cream">Sign out</h2>
+          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">Sign out</h2>
         </div>
         <div className="surface overflow-hidden">
           <button
@@ -267,7 +270,7 @@ export function AccountSettingsPage() {
               <LogOut className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-extrabold text-cream">Sign out of this device</span>
+              <span className="block text-sm font-extrabold text-fg">Sign out of this device</span>
               <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
                 Remove this account's offline copy. Your plans stay safe on the server.
               </span>
@@ -282,10 +285,10 @@ export function AccountSettingsPage() {
         </div>
       </section>
 
-      <footer className="mt-10 flex flex-col items-center gap-2 border-t border-white/[0.06] pt-8 pb-2 text-center">
+      <footer className="mt-10 flex flex-col items-center gap-2 border-t border-fg/[0.06] pt-8 pb-2 text-center">
         <Wordmark markSize={26} />
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted/50">
-          Version 1.1 · Synced & offline
+          Version 1.2 · Synced & offline
         </p>
       </footer>
 
@@ -338,11 +341,11 @@ export function AccountSettingsPage() {
         onConfirm={importProfile}
       >
         {importTarget ? (
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+          <div className="rounded-2xl border border-fg/[0.08] bg-fg/[0.025] p-4">
             <div className="flex items-center gap-3">
               <Avatar name={importTarget.name} color={importTarget.color} size="sm" />
               <div>
-                <p className="text-sm font-extrabold text-cream">{importTarget.name}</p>
+                <p className="text-sm font-extrabold text-fg">{importTarget.name}</p>
                 <p className="text-[10px] font-bold text-muted">
                   {pluralize(guestStats[importTarget.id]?.trips ?? 0, 'trip')} ·{' '}
                   {pluralize(guestStats[importTarget.id]?.plans ?? 0, 'plan')}

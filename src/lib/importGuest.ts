@@ -39,6 +39,8 @@ export async function importGuestProfileIntoAccount(
           createdAt: trip.createdAt,
           updatedAt: now,
           dirty: true,
+          role: 'owner' as const,
+          memberCount: 0,
         }
       })
 

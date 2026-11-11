@@ -1,17 +1,13 @@
 import { db } from '@/db'
 import type { Activity, Attachment, Profile, Trip } from '@/types'
 import { newId } from './id'
-import { timeToMinutes } from './dates'
+import { activityTimeRank, occursOn, sortActivitiesByTime } from './dates'
 import { emitLocalChange } from './syncBus'
 
-function insertionIndex(siblings: Activity[], startTime?: string): number {
-  if (!startTime) return siblings.length
-  const target = timeToMinutes(startTime)
-
+function insertionIndex(siblings: Activity[], activity: Pick<Activity, 'startTime' | 'timeSlot'>): number {
+  const target = activityTimeRank(activity)
   for (let index = 0; index < siblings.length; index += 1) {
-    const sibling = siblings[index]
-    if (!sibling.startTime) return index
-    if (timeToMinutes(sibling.startTime) > target) return index
+    if (activityTimeRank(siblings[index]) > target) return index
   }
   return siblings.length
 }
@@ -49,7 +45,7 @@ export async function createActivity(activity: Activity): Promise<void> {
       .toArray()
     siblings.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt)
 
-    const index = insertionIndex(siblings, activity.startTime)
+    const index = insertionIndex(siblings, activity)
     siblings.splice(index, 0, { ...activity, dirty: true, updatedAt: now })
     await db.activities.bulkPut(
       siblings.map((item, order) => ({ ...item, sortOrder: order, dirty: true, updatedAt: now })),
@@ -79,7 +75,7 @@ export async function updateActivity(activity: Activity): Promise<void> {
       .toArray()
     siblings.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt)
 
-    const index = insertionIndex(siblings, activity.startTime)
+    const index = insertionIndex(siblings, activity)
     siblings.splice(index, 0, updated)
     await db.activities.bulkPut(
       siblings.map((item, order) => ({ ...item, sortOrder: order, dirty: true, updatedAt: updated.updatedAt })),
@@ -139,15 +135,25 @@ export async function reorderDay(profileId: string, date: string, orderedIds: st
   emitLocalChange()
 }
 
+export async function reorderVisibleActivities(
+  _profileId: string,
+  orderedIds: string[],
+): Promise<void> {
+  await db.transaction('rw', db.activities, async () => {
+    const activities = await db.activities.bulkGet(orderedIds)
+    const now = Date.now()
+    const updates = activities
+      .filter((activity): activity is Activity => Boolean(activity))
+      .map((activity, index) => ({ ...activity, sortOrder: index, dirty: true, updatedAt: now }))
+    await db.activities.bulkPut(updates)
+  })
+  emitLocalChange()
+}
+
 export async function sortDayByTime(profileId: string, date: string): Promise<void> {
   await db.transaction('rw', db.activities, async () => {
-    const activities = await db.activities.where('[profileId+date]').equals([profileId, date]).toArray()
-    activities.sort((a, b) => {
-      if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
-      if (a.startTime) return -1
-      if (b.startTime) return 1
-      return a.sortOrder - b.sortOrder || a.createdAt - b.createdAt
-    })
+    const all = await db.activities.where('profileId').equals(profileId).toArray()
+    const activities = sortActivitiesByTime(all.filter((activity) => occursOn(activity, date)))
     const now = Date.now()
     await db.activities.bulkPut(
       activities.map((activity, index) => ({ ...activity, sortOrder: index, dirty: true, updatedAt: now })),
@@ -223,6 +229,8 @@ export async function createTrip(input: {
     color: input.color,
     emoji: input.emoji,
     notes: input.notes,
+    role: 'owner',
+    memberCount: 0,
     createdAt: now,
     updatedAt: now,
     dirty: true,

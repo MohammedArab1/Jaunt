@@ -40,7 +40,10 @@ test('registers the service worker during offline onboarding', async ({ page }) 
 async function addLoosePlan(page: Page, name: string, startTime?: string) {
   await page.getByLabel('Add a plan', { exact: true }).click()
   await page.getByLabel('What is it?').fill(name)
-  if (startTime) await page.getByLabel('Starts').fill(startTime)
+  if (startTime) {
+    await page.getByRole('button', { name: 'Time', exact: true }).click()
+    await page.getByLabel('Start time', { exact: true }).fill(startTime)
+  }
   await page.getByRole('button', { name: 'Add plan', exact: true }).click()
   await expect(page.getByRole('button', { name: `View ${name}` })).toBeVisible()
 }
@@ -161,4 +164,39 @@ test('adds another local profile and switches between them', async ({ page }) =>
   await page.getByRole('button', { name: /Mo\s+Tap to switch/ }).click()
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'View Mo plan' })).toBeVisible()
+})
+
+
+test('supports empty times, multi-day day-part plans, and light mode', async ({ page }) => {
+  await onboard(page, 'Sunny')
+
+  // Saving with no specific time should be allowed.
+  await page.getByLabel('Add a plan', { exact: true }).click()
+  await page.getByLabel('What is it?').fill('No-time plan')
+  await page.getByRole('button', { name: 'Time', exact: true }).click()
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'View No-time plan' })).toBeVisible()
+
+  // A plan spanning multiple days with a day-part instead of a clock time.
+  await page.getByLabel('Add a plan', { exact: true }).click()
+  await page.getByLabel('What is it?').fill('Away weekend')
+  await page.getByRole('button', { name: 'Multi-day' }).click()
+  await page.getByLabel('End date', { exact: true }).fill(localDayKey(1))
+  await page.getByRole('button', { name: 'Part of day' }).click()
+  await page.getByRole('button', { name: 'Evening' }).click()
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'View Away weekend' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'View Away weekend' }).click()
+  await expect(page.getByText('Evening').first()).toBeVisible()
+  await expect(page.getByText(/Day 1 of 2/)).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  await page.getByRole('link', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Light' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Today' }).click()
+  await expect(page.getByRole('button', { name: 'View Away weekend' })).toBeVisible()
 })

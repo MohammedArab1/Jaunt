@@ -1,4 +1,4 @@
-import type { AuthUser, SyncRequest, SyncResponse } from '@/types'
+import type { AuthUser, SyncRequest, SyncResponse, TripInvite, TripMember, TripMembersPayload } from '@/types'
 
 export class ApiError extends Error {
   status: number
@@ -94,6 +94,37 @@ export const api = {
       body: payload,
       timeoutMs: 60_000,
     }),
+
+  invites: {
+    list: () => request<{ invites: TripInvite[] }>('/api/invites'),
+    accept: (tripId: string) =>
+      request<{ ok: true; tripId: string }>(`/api/invites/${encodeURIComponent(tripId)}/accept`, {
+        method: 'POST',
+      }),
+    decline: (tripId: string) =>
+      request<{ ok: true }>(`/api/invites/${encodeURIComponent(tripId)}/decline`, {
+        method: 'POST',
+      }),
+  },
+
+  trips: {
+    members: (tripId: string) =>
+      request<TripMembersPayload>(`/api/trips/${encodeURIComponent(tripId)}/members`),
+    invite: (tripId: string, email: string) =>
+      request<{ ok: true; member: TripMember }>(`/api/trips/${encodeURIComponent(tripId)}/invite`, {
+        method: 'POST',
+        body: { email },
+      }),
+    removeMember: (tripId: string, memberId: string) =>
+      request<{ ok: true }>(
+        `/api/trips/${encodeURIComponent(tripId)}/members/${encodeURIComponent(memberId)}`,
+        { method: 'DELETE' },
+      ),
+    leave: (tripId: string) =>
+      request<{ ok: true }>(`/api/trips/${encodeURIComponent(tripId)}/leave`, {
+        method: 'POST',
+      }),
+  },
 
   async uploadAttachment(id: string, blob: Blob, mimeType: string): Promise<void> {
     let response: Response

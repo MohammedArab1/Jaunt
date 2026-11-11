@@ -1,8 +1,8 @@
-import { CalendarDays, ChevronRight, ListChecks, MapPin } from 'lucide-react'
+import { CalendarDays, ChevronRight, ListChecks, MapPin, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { Trip } from '@/types'
 import { compactDateRange, tripCountdownLabel } from '@/lib/dates'
-import { cn, hexAlpha } from '@/lib/utils'
+import { cn, cssVars, hexAlpha } from '@/lib/utils'
 
 interface TripCardProps {
   trip: Trip
@@ -15,12 +15,13 @@ interface TripCardProps {
 export function TripCard({ trip, today, planCount, doneCount, past = false }: TripCardProps) {
   const countdown = tripCountdownLabel(trip.startDate, trip.endDate, today)
   const active = today >= trip.startDate && today <= trip.endDate
+  const shared = trip.role === 'member' || Boolean(trip.memberCount)
 
   return (
     <Link
       to={`/trips/${trip.id}`}
       className={cn(
-        'group flex overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.03] transition-all hover:border-white/[0.16] hover:bg-white/[0.055]',
+        'group flex overflow-hidden rounded-[26px] border border-fg/[0.09] bg-fg/[0.03] transition-all hover:border-fg/[0.16] hover:bg-fg/[0.055]',
         past && 'opacity-65 hover:opacity-100',
       )}
     >
@@ -31,7 +32,7 @@ export function TripCard({ trip, today, planCount, doneCount, past = false }: Tr
         }}
       >
         <span
-          className="pointer-events-none absolute -left-8 -top-8 h-24 w-24 rounded-full border border-white/20"
+          className="pointer-events-none absolute -left-8 -top-8 h-24 w-24 rounded-full border border-fg/20"
           aria-hidden
         />
         <span
@@ -46,16 +47,16 @@ export function TripCard({ trip, today, planCount, doneCount, past = false }: Tr
       <div className="min-w-0 flex-1 p-4">
         <div className="flex items-start justify-between gap-2">
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em]"
-            style={{ backgroundColor: hexAlpha(trip.color, 0.13), color: trip.color }}
+            className="trip-color-text inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em]"
+            style={{ ...cssVars({ '--trip-color': trip.color }), backgroundColor: hexAlpha(trip.color, 0.13) }}
           >
             {active ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
             {countdown}
           </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-cream" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-fg" />
         </div>
 
-        <h3 className="mt-2 truncate font-display text-[21px] font-extrabold leading-tight tracking-[-0.03em] text-cream">
+        <h3 className="mt-2 truncate font-display text-[21px] font-extrabold leading-tight tracking-[-0.03em] text-fg">
           {trip.name}
         </h3>
 
@@ -75,6 +76,12 @@ export function TripCard({ trip, today, planCount, doneCount, past = false }: Tr
             <ListChecks className="h-3 w-3" />
             {planCount === 0 ? 'No plans yet' : `${doneCount}/${planCount} done`}
           </span>
+          {shared ? (
+            <span className="inline-flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              {trip.role === 'member' ? 'Shared' : `${(trip.memberCount ?? 0) + 1} travelers`}
+            </span>
+          ) : null}
         </div>
       </div>
     </Link>

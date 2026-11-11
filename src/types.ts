@@ -1,3 +1,5 @@
+export type TimeSlot = 'morning' | 'afternoon' | 'evening'
+
 export type ActivityType =
   | 'flight'
   | 'lodging'
@@ -26,6 +28,8 @@ export interface Trip {
   color: string
   emoji: string
   notes?: string
+  role?: 'owner' | 'member'
+  memberCount?: number
   createdAt: number
   updatedAt: number
   dirty?: boolean
@@ -37,8 +41,10 @@ export interface Activity {
   tripId?: string
   name: string
   date: string
+  endDate?: string
   startTime?: string
   endTime?: string
+  timeSlot?: TimeSlot
   location?: string
   type: ActivityType
   notes?: string
@@ -120,6 +126,8 @@ export interface SyncTrip {
   color: string
   emoji: string
   notes?: string | null
+  role?: 'owner' | 'member'
+  memberCount?: number
   createdAt: number
   updatedAt: number
 }
@@ -129,8 +137,10 @@ export interface SyncActivity {
   tripId?: string | null
   name: string
   date: string
+  endDate?: string | null
   startTime?: string | null
   endTime?: string | null
+  timeSlot?: TimeSlot | null
   location?: string | null
   type: ActivityType
   notes?: string | null
@@ -173,4 +183,38 @@ export interface SyncResponse {
   activities: SyncActivity[]
   attachments: SyncAttachment[]
   deletions: SyncDeletion[]
+}
+
+
+export interface TripInvite {
+  tripId: string
+  name: string
+  destination?: string | null
+  startDate: string
+  endDate: string
+  color: string
+  emoji: string
+  ownerName: string
+  ownerEmail: string
+  invitedAt: string
+}
+
+export interface TripMember {
+  userId: string
+  email: string
+  displayName: string
+  color: string
+  status: 'pending' | 'accepted'
+  invitedAt: string
+}
+
+export interface TripMembersPayload {
+  me: 'owner' | 'member'
+  owner: {
+    id: string
+    email: string
+    displayName: string
+    color: string
+  }
+  members: TripMember[]
 }

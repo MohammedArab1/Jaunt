@@ -14,6 +14,7 @@ import { useAuth } from '@/context/AuthContext'
 import { isNetworkError } from '@/lib/api'
 import { getErrorMessage } from '@/lib/utils'
 import { Wordmark } from '@/components/ui/Logo'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 const features = [
   {
@@ -101,15 +102,18 @@ export function AuthScreen() {
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+1.5rem)] sm:px-8 lg:flex-row lg:items-center lg:gap-20 lg:px-12 lg:py-12">
         <section className="flex-1 lg:max-w-xl">
-          <Wordmark markSize={34} />
+          <div className="flex items-center justify-between gap-4">
+            <Wordmark markSize={34} />
+            <ThemeToggle />
+          </div>
 
           <div className="mt-10 lg:mt-16">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted">
+            <span className="inline-flex items-center gap-2 rounded-full border border-fg/10 bg-fg/[0.04] px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-mint" />
               Sync or stay offline.
             </span>
 
-            <h1 className="mt-5 text-balance font-display text-[3rem] font-extrabold leading-[0.9] tracking-[-0.055em] text-cream sm:text-6xl xl:text-[4.2rem]">
+            <h1 className="mt-5 text-balance font-display text-[3rem] font-extrabold leading-[0.9] tracking-[-0.055em] text-fg sm:text-6xl xl:text-[4.2rem]">
               Your good days,{' '}
               <span className="bg-gradient-to-r from-coral via-punch to-violet bg-clip-text text-transparent">
                 on every device.
@@ -126,13 +130,13 @@ export function AuthScreen() {
             {features.map(({ icon: Icon, color, title, body }) => (
               <div key={title} className="flex items-start gap-3.5">
                 <span
-                  className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.07]"
+                  className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fg/[0.07]"
                   style={{ backgroundColor: `${color}1f`, color }}
                 >
                   <Icon className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-sm font-extrabold text-cream">{title}</p>
+                  <p className="text-sm font-extrabold text-fg">{title}</p>
                   <p className="mt-0.5 max-w-sm text-xs font-medium leading-relaxed text-muted">{body}</p>
                 </div>
               </div>
@@ -141,7 +145,7 @@ export function AuthScreen() {
         </section>
 
         <section className="mt-10 w-full lg:mt-0 lg:max-w-[430px]">
-          <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-surface/85 p-6 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-8">
+          <div className="relative overflow-hidden rounded-[32px] border border-fg/10 bg-surface/85 p-6 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-8">
             <div
               className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-coral/10 blur-3xl"
               aria-hidden
@@ -152,7 +156,7 @@ export function AuthScreen() {
                 <button
                   type="button"
                   onClick={() => navigate('/')}
-                  className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-cream"
+                  className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-fg"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Back to offline mode
@@ -160,7 +164,7 @@ export function AuthScreen() {
               ) : null}
 
               <p className="eyebrow">{isRegister ? 'Join the good days' : 'Welcome back'}</p>
-              <h2 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.04em] text-cream">
+              <h2 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.04em] text-fg">
                 {isRegister ? 'Create your account.' : 'Sign in to Jaunt.'}
               </h2>
               <p className="mt-2 text-sm font-medium leading-relaxed text-muted">
@@ -206,7 +210,7 @@ export function AuthScreen() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((current) => !current)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted transition hover:text-cream"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted transition hover:text-fg"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -222,7 +226,7 @@ export function AuthScreen() {
                 {error ? (
                   <p
                     role="alert"
-                    className="rounded-xl border border-punch/20 bg-punch/10 px-3 py-2.5 text-xs font-bold leading-relaxed text-[#FFB3C5]"
+                    className="rounded-xl border border-punch/20 bg-punch/10 px-3 py-2.5 text-xs font-bold leading-relaxed text-punch"
                   >
                     {error}
                   </p>
@@ -239,18 +243,18 @@ export function AuthScreen() {
                 <button
                   type="button"
                   onClick={() => switchMode(isRegister ? 'login' : 'register')}
-                  className="font-extrabold text-coral transition hover:text-[#ff8a70]"
+                  className="font-extrabold text-coral transition hover:opacity-80"
                 >
                   {isRegister ? 'Sign in' : 'Create one'}
                 </button>
               </p>
 
               <div className="my-5 flex items-center gap-3">
-                <span className="h-px flex-1 bg-white/[0.08]" />
+                <span className="h-px flex-1 bg-fg/[0.08]" />
                 <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted/50">
                   or
                 </span>
-                <span className="h-px flex-1 bg-white/[0.08]" />
+                <span className="h-px flex-1 bg-fg/[0.08]" />
               </div>
 
               <button type="button" onClick={goOffline} className="btn btn-secondary w-full">

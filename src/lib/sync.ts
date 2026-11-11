@@ -56,7 +56,9 @@ function toSyncActivity(activity: Activity): SyncActivity {
     tripId: activity.tripId,
     name: activity.name,
     date: activity.date,
+    endDate: activity.endDate,
     startTime: activity.startTime,
+    timeSlot: activity.timeSlot,
     endTime: activity.endTime,
     location: activity.location,
     type: activity.type,
@@ -93,6 +95,8 @@ function toLocalTrip(trip: SyncTrip, profileId: string): Trip {
     color: trip.color,
     emoji: trip.emoji,
     notes: optional(trip.notes),
+    role: trip.role ?? 'owner',
+    memberCount: trip.memberCount ?? 0,
     createdAt: trip.createdAt,
     updatedAt: trip.updatedAt,
     dirty: false,
@@ -106,7 +110,9 @@ function toLocalActivity(activity: SyncActivity, profileId: string): Activity {
     tripId: optional(activity.tripId),
     name: activity.name,
     date: activity.date,
+    endDate: optional(activity.endDate),
     startTime: optional(activity.startTime),
+    timeSlot: optional(activity.timeSlot),
     endTime: optional(activity.endTime),
     location: optional(activity.location),
     type: activity.type,
@@ -147,13 +153,31 @@ async function accountFullCacheIsActive(userId: string): Promise<boolean> {
 
 async function applyRemoteDeletion(userId: string, deletion: SyncDeletion): Promise<void> {
   if (deletion.entity === 'trip') {
-    await db.trips.delete(deletion.id)
-    await db.activities
+    const localTrip = await db.trips.get(deletion.id)
+    const shared = localTrip?.role === 'member'
+    const tripActivities = await db.activities
       .where('[profileId+tripId]')
       .equals([userId, deletion.id])
-      .modify((activity) => {
-        activity.tripId = undefined
-      })
+      .toArray()
+
+    if (shared) {
+      const activityIds = tripActivities.map((activity) => activity.id)
+      if (activityIds.length) {
+        const attachments = await db.attachments.where('activityId').anyOf(activityIds).toArray()
+        await db.files.bulkDelete(attachments.map((attachment) => attachment.id))
+        await db.attachments.bulkDelete(attachments.map((attachment) => attachment.id))
+        await db.activities.bulkDelete(activityIds)
+      }
+    } else {
+      await db.activities
+        .where('[profileId+tripId]')
+        .equals([userId, deletion.id])
+        .modify((activity) => {
+          activity.tripId = undefined
+        })
+    }
+
+    await db.trips.delete(deletion.id)
   } else if (deletion.entity === 'activity') {
     const attachments = await db.attachments.where('activityId').equals(deletion.id).toArray()
     if (attachments.length) {

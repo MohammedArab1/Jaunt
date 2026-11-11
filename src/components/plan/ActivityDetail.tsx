@@ -18,9 +18,18 @@ import { useNavigate } from 'react-router-dom'
 import { db } from '@/db'
 import type { Attachment } from '@/types'
 import { activityMeta } from '@/lib/activityMeta'
-import { formatDay, formatTimeRange } from '@/lib/dates'
+import {
+  activityDateRangeLabel,
+  activityEndDate,
+  activityScheduleLabel,
+  activitySpanPosition,
+  activitySpansMultipleDays,
+  dateRangeLabel,
+  formatDay,
+  todayKey,
+} from '@/lib/dates'
 import { deleteActivity, setActivityCompleted } from '@/lib/repo'
-import { copyText, hexAlpha, safeHostname } from '@/lib/utils'
+import { copyText, cssVars, hexAlpha, safeHostname } from '@/lib/utils'
 import { useToast } from '@/context/ToastContext'
 import { Sheet } from '@/components/ui/Sheet'
 import { TypeBadge } from '@/components/ui/TypeBadge'
@@ -84,6 +93,8 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
 
   const meta = activityMeta(activity.type)
   const Icon = meta.icon
+  const spanToday = activitySpanPosition(activity, todayKey())
+  const spanTotal = activitySpanPosition(activity, activity.date)?.total ?? 1
   const mapsUrl = activity.location
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.location)}`
     : null
@@ -119,11 +130,15 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
         onOpenChange={(open) => !open && onClose()}
         wide
         title={activity.name}
-        description={formatDay(activity.date, 'EEEE, MMM d')}
+        description={
+          activitySpansMultipleDays(activity)
+            ? dateRangeLabel(activity.date, activityEndDate(activity))
+            : formatDay(activity.date, 'EEEE, MMM d')
+        }
         footer={
           confirmDelete ? (
             <div className="space-y-3">
-              <p className="text-sm font-bold text-cream">Delete this plan for good?</p>
+              <p className="text-sm font-bold text-fg">Delete this plan for good?</p>
               <div className="flex gap-2.5">
                 <button type="button" className="btn btn-secondary flex-1" onClick={() => setConfirmDelete(false)} disabled={busy}>
                   Keep it
@@ -173,6 +188,11 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
         <div className="space-y-5 pb-1">
           <div className="flex flex-wrap items-center gap-2">
             <TypeBadge type={activity.type} size="md" />
+            {activitySpansMultipleDays(activity) ? (
+              <span className="chip bg-violet/15 text-violet">
+                {activityDateRangeLabel(activity)}
+              </span>
+            ) : null}
             {activity.completed ? (
               <span className="chip bg-mint/15 text-mint">
                 <Check className="h-3 w-3" /> Done
@@ -185,8 +205,8 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
                   onClose()
                   navigate(`/trips/${trip.id}`)
                 }}
-                className="chip max-w-full"
-                style={{ backgroundColor: hexAlpha(trip.color, 0.14), color: trip.color }}
+                className="trip-color-text chip max-w-full"
+                style={{ ...cssVars({ '--trip-color': trip.color }), backgroundColor: hexAlpha(trip.color, 0.14) }}
               >
                 <span>{trip.emoji}</span>
                 <span className="truncate">{trip.name}</span>
@@ -195,31 +215,40 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
           </div>
 
           <div
-            className="relative overflow-hidden rounded-[24px] border border-white/10 p-4"
+            className="relative overflow-hidden rounded-[24px] border border-fg/10 p-4"
             style={{
-              background: `linear-gradient(135deg, ${hexAlpha(meta.color, 0.12)}, rgba(255,255,255,0.025) 60%)`,
+              background: `linear-gradient(135deg, ${hexAlpha(meta.color, 0.12)}, var(--color-sheen) 60%)`,
               borderColor: hexAlpha(meta.color, 0.2),
             }}
           >
             <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full blur-2xl" style={{ backgroundColor: hexAlpha(meta.color, 0.18) }} />
             <div className="relative flex items-start gap-3.5">
               <span
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10"
-                style={{ backgroundColor: hexAlpha(meta.color, 0.16), color: meta.color }}
+                className="type-color-text grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-fg/10"
+                style={{ ...cssVars({ '--type-color': meta.color }), backgroundColor: hexAlpha(meta.color, 0.16) }}
               >
                 <Icon className="h-5 w-5" />
               </span>
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-start gap-2">
                   <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
-                  <p className="text-[13px] font-bold leading-snug text-cream">
-                    {formatDay(activity.date, 'EEEE, MMMM d, yyyy')}
-                  </p>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold leading-snug text-fg">
+                      {activitySpansMultipleDays(activity)
+                        ? dateRangeLabel(activity.date, activityEndDate(activity))
+                        : formatDay(activity.date, 'EEEE, MMMM d, yyyy')}
+                    </p>
+                    {activitySpansMultipleDays(activity) ? (
+                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-violet">
+                        {spanToday ? `Day ${spanToday.day} of ${spanToday.total}` : `${spanTotal} days`}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
-                  <p className="text-[13px] font-bold leading-snug text-cream">
-                    {formatTimeRange(activity.startTime, activity.endTime)}
+                  <p className="text-[13px] font-bold leading-snug text-fg">
+                    {activityScheduleLabel(activity)}
                   </p>
                 </div>
                 {activity.location ? (
@@ -228,7 +257,7 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
                       href={mapsUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex break-words items-start gap-2 text-[13px] font-bold leading-snug text-cream underline decoration-white/20 underline-offset-4 transition hover:text-coral"
+                      className="flex break-words items-start gap-2 text-[13px] font-bold leading-snug text-fg underline decoration-white/20 underline-offset-4 transition hover:text-coral"
                     >
                       <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
                       <span>{activity.location}</span>
@@ -240,11 +269,11 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
           </div>
 
           {activity.confirmation ? (
-            <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+            <div className="flex items-center gap-3 rounded-2xl border border-fg/[0.08] bg-fg/[0.03] px-4 py-3">
               <Ticket className="h-4 w-4 shrink-0 text-muted" />
               <div className="min-w-0 flex-1">
                 <p className="eyebrow">Confirmation</p>
-                <p className="truncate font-mono text-sm font-bold tracking-wide text-cream">{activity.confirmation}</p>
+                <p className="truncate font-mono text-sm font-bold tracking-wide text-fg">{activity.confirmation}</p>
               </div>
               <button
                 type="button"
@@ -262,12 +291,12 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
               href={activity.url}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 transition hover:bg-white/[0.06]"
+              className="flex items-center gap-3 rounded-2xl border border-fg/[0.08] bg-fg/[0.03] px-4 py-3 transition hover:bg-fg/[0.06]"
             >
               <ExternalLink className="h-4 w-4 shrink-0 text-sky" />
               <div className="min-w-0 flex-1">
                 <p className="eyebrow">Link</p>
-                <p className="truncate text-sm font-bold text-cream">{safeHostname(activity.url)}</p>
+                <p className="truncate text-sm font-bold text-fg">{safeHostname(activity.url)}</p>
               </div>
               <ExternalLink className="h-3.5 w-3.5 text-muted" />
             </a>
@@ -276,7 +305,7 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
           {activity.notes ? (
             <div>
               <p className="eyebrow mb-2">Notes</p>
-              <p className="whitespace-pre-wrap break-words rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 text-sm font-medium leading-relaxed text-muted">
+              <p className="whitespace-pre-wrap break-words rounded-2xl border border-fg/[0.07] bg-fg/[0.025] p-4 text-sm font-medium leading-relaxed text-muted">
                 {activity.notes}
               </p>
             </div>

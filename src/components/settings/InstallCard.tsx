@@ -9,7 +9,7 @@ export function InstallCard() {
   return (
     <section className="mt-8">
       <div className="mb-3">
-        <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-cream">
+        <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">
           Put it on your home screen
         </h2>
         <p className="mt-1 text-xs font-medium text-muted">Lose the browser bar. Keep the good stuff.</p>
@@ -17,7 +17,7 @@ export function InstallCard() {
 
       <div className="surface p-4">
         <div className="flex items-start gap-3.5">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-violet">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] text-violet">
             <Smartphone className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
@@ -30,7 +30,7 @@ export function InstallCard() {
               </>
             ) : (
               <>
-                <p className="text-sm font-extrabold text-cream">Add Jaunt to your home screen</p>
+                <p className="text-sm font-extrabold text-fg">Add Jaunt to your home screen</p>
                 {canInstall ? (
                   <button
                     type="button"

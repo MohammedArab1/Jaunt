@@ -14,7 +14,7 @@ export function SyncBanner() {
   const offline = status === 'offline'
 
   return (
-    <div className="sticky top-0 z-30 border-b border-white/[0.08] bg-[#121019]/95 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.6rem)] backdrop-blur-xl sm:px-6 lg:pl-10">
+    <div className="sticky top-0 z-30 border-b border-fg/[0.08] bg-surface/95 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.6rem)] backdrop-blur-xl sm:px-6 lg:pl-10">
       <div className="mx-auto flex max-w-3xl items-center gap-2.5">
         {syncing ? (
           <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin text-sky" />
@@ -34,7 +34,7 @@ export function SyncBanner() {
           <button
             type="button"
             onClick={() => void syncNow()}
-            className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-cream transition hover:bg-white/[0.1]"
+            className="shrink-0 rounded-full border border-fg/10 bg-fg/[0.05] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] text-fg transition hover:bg-fg/[0.1]"
           >
             Retry
           </button>

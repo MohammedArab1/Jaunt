@@ -5,6 +5,7 @@ import '@fontsource-variable/bricolage-grotesque'
 import '@fontsource-variable/manrope'
 import './index.css'
 import App from './App'
+import { ThemeProvider } from '@/context/ThemeContext'
 import { AuthProvider } from '@/context/AuthContext'
 import { ProfileProvider } from '@/context/ProfileContext'
 import { ToastProvider } from '@/context/ToastContext'
@@ -14,17 +15,19 @@ import { SyncProvider } from '@/context/SyncContext'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <ProfileProvider>
-          <ToastProvider>
-            <InstallProvider>
-              <SyncProvider>
-                <App />
-              </SyncProvider>
-            </InstallProvider>
-          </ToastProvider>
-        </ProfileProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ProfileProvider>
+            <ToastProvider>
+              <InstallProvider>
+                <SyncProvider>
+                  <App />
+                </SyncProvider>
+              </InstallProvider>
+            </ToastProvider>
+          </ProfileProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,
 )

@@ -27,7 +27,7 @@ export function PageHeader({
         <button
           type="button"
           onClick={onBack}
-          className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-cream"
+          className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-fg"
         >
           <ArrowLeft className="h-4 w-4" />
           {backLabel}
@@ -36,7 +36,7 @@ export function PageHeader({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           {eyebrow ? <p className="eyebrow mb-2.5">{eyebrow}</p> : null}
-          <h1 className="break-words text-balance font-display text-[2.55rem] font-extrabold leading-[0.94] tracking-[-0.045em] text-cream sm:text-5xl">
+          <h1 className="break-words text-balance font-display text-[2.55rem] font-extrabold leading-[0.94] tracking-[-0.045em] text-fg sm:text-5xl">
             {title}
           </h1>
           {description ? (

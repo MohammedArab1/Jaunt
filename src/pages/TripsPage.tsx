@@ -1,11 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronDown, Luggage, Plus } from 'lucide-react'
+import { ChevronDown, Loader2, Luggage, Mail, Plus, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { db } from '@/db'
-import type { Activity, Trip } from '@/types'
+import type { Activity, Trip, TripInvite } from '@/types'
 import { useToday } from '@/hooks/useToday'
 import { useProfile } from '@/context/ProfileContext'
+import { useAuth } from '@/context/AuthContext'
+import { useSync } from '@/context/SyncContext'
+import { useToast } from '@/context/ToastContext'
+import { api } from '@/lib/api'
+import { compactDateRange } from '@/lib/dates'
+import { getErrorMessage, hexAlpha } from '@/lib/utils'
 import { Page } from '@/components/ui/Page'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -14,11 +20,16 @@ import { TripForm } from '@/components/trips/TripForm'
 
 export function TripsPage() {
   const { profile } = useProfile()
+  const { mode } = useAuth()
+  const { syncNow } = useSync()
+  const { toast } = useToast()
   const profileId = profile?.id ?? ''
   const today = useToday()
   const navigate = useNavigate()
   const [newTripOpen, setNewTripOpen] = useState(false)
   const [showPast, setShowPast] = useState(false)
+  const [invites, setInvites] = useState<TripInvite[]>([])
+  const [inviteBusy, setInviteBusy] = useState<string | null>(null)
 
   const trips = useLiveQuery(
     () => (profileId ? db.trips.where('profileId').equals(profileId).toArray() : Promise.resolve([] as Trip[])),
@@ -43,6 +54,58 @@ export function TripsPage() {
     }
     return map
   }, [activities])
+
+  useEffect(() => {
+    if (mode !== 'account') return
+    let cancelled = false
+
+    const load = async () => {
+      try {
+        const response = await api.invites.list()
+        if (!cancelled) setInvites(response.invites)
+      } catch {
+        // Invitations are best-effort; the page still works offline.
+      }
+    }
+
+    void load()
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load()
+    }, 60_000)
+    const onFocus = () => void load()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [mode])
+
+  const acceptInvite = async (invite: TripInvite) => {
+    setInviteBusy(invite.tripId)
+    try {
+      await api.invites.accept(invite.tripId)
+      setInvites((current) => current.filter((item) => item.tripId !== invite.tripId))
+      toast('Trip added to your trips.', 'success')
+      await syncNow()
+    } catch (cause) {
+      toast(getErrorMessage(cause), 'error', 5000)
+    } finally {
+      setInviteBusy(null)
+    }
+  }
+
+  const declineInvite = async (invite: TripInvite) => {
+    setInviteBusy(invite.tripId)
+    try {
+      await api.invites.decline(invite.tripId)
+      setInvites((current) => current.filter((item) => item.tripId !== invite.tripId))
+    } catch (cause) {
+      toast(getErrorMessage(cause), 'error', 5000)
+    } finally {
+      setInviteBusy(null)
+    }
+  }
 
   const upcoming = useMemo(
     () =>
@@ -80,6 +143,66 @@ export function TripsPage() {
         }
       />
 
+      {invites.length > 0 ? (
+        <section className="mb-8">
+          <div className="mb-3 flex items-center gap-2">
+            <Mail className="h-3.5 w-3.5 text-coral" />
+            <p className="eyebrow">Trip invitations</p>
+          </div>
+          <div className="space-y-2.5">
+            {invites.map((invite) => (
+              <div
+                key={invite.tripId}
+                className="overflow-hidden rounded-[24px] border border-coral/20"
+                style={{
+                  background: `linear-gradient(135deg, ${hexAlpha(invite.color, 0.16)}, var(--color-sheen))`,
+                }}
+              >
+                <div className="flex items-start gap-3 p-4">
+                  <span
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-2xl"
+                    style={{ backgroundColor: hexAlpha(invite.color, 0.22) }}
+                  >
+                    {invite.emoji}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display text-lg font-extrabold tracking-[-0.02em] text-fg">
+                      {invite.name}
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-semibold text-muted">
+                      From {invite.ownerName} · {compactDateRange(invite.startDate, invite.endDate)}
+                    </p>
+                    <p className="mt-1 flex items-center gap-1 text-[10px] font-bold text-muted/60">
+                      <Users className="h-3 w-3" />
+                      You've been invited to plan together
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 border-t border-fg/[0.07] p-2.5">
+                  <button
+                    type="button"
+                    className="btn btn-primary h-9 flex-1 text-[11px]"
+                    onClick={() => void acceptInvite(invite)}
+                    disabled={inviteBusy === invite.tripId}
+                  >
+                    {inviteBusy === invite.tripId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary h-9 px-4 text-[11px]"
+                    onClick={() => void declineInvite(invite)}
+                    disabled={inviteBusy === invite.tripId}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {trips.length === 0 ? (
         <EmptyState
           icon={<Luggage className="h-6 w-6" />}
@@ -116,8 +239,8 @@ export function TripsPage() {
                 })}
               </div>
             ) : (
-              <div className="rounded-[26px] border border-dashed border-white/12 px-6 py-8 text-center">
-                <p className="font-display text-lg font-extrabold tracking-[-0.02em] text-cream">
+              <div className="rounded-[26px] border border-dashed border-fg/12 px-6 py-8 text-center">
+                <p className="font-display text-lg font-extrabold tracking-[-0.02em] text-fg">
                   The calendar's clear.
                 </p>
                 <p className="mx-auto mt-1 max-w-xs text-xs font-medium leading-relaxed text-muted">

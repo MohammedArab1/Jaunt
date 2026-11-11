@@ -36,10 +36,10 @@ export function AttachmentTile({ attachment, onRemove, onOpen, className }: Atta
     url ? (
       <img src={url} alt={attachment.name} className="h-full w-full object-cover" loading="lazy" />
     ) : (
-      <div className="h-full w-full animate-pulse bg-white/[0.06]" />
+      <div className="h-full w-full animate-pulse bg-fg/[0.06]" />
     )
   ) : (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#241A1D] p-2 text-center">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-punch/10 p-2 text-center">
       <FileText className="h-6 w-6 text-punch" />
       <span className="line-clamp-2 text-[9px] font-bold leading-tight text-muted">{attachment.name}</span>
     </div>
@@ -56,7 +56,7 @@ export function AttachmentTile({ attachment, onRemove, onOpen, className }: Atta
   return (
     <div
       className={cn(
-        'group relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]',
+        'group relative aspect-square overflow-hidden rounded-2xl border border-fg/10 bg-fg/[0.04]',
         className,
       )}
     >
@@ -68,7 +68,7 @@ export function AttachmentTile({ attachment, onRemove, onOpen, className }: Atta
             event.stopPropagation()
             onRemove()
           }}
-          className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-cream shadow-lg backdrop-blur transition hover:bg-black"
+          className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white shadow-lg backdrop-blur transition hover:bg-black"
           aria-label={`Remove ${attachment.name}`}
         >
           <X className="h-3.5 w-3.5" />

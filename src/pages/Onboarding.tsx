@@ -1,6 +1,7 @@
 import { CalendarHeart, Paperclip, ShieldCheck, Sun } from 'lucide-react'
 import { useProfile } from '@/context/ProfileContext'
 import { Wordmark } from '@/components/ui/Logo'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { ProfileForm } from '@/components/profile/ProfileForm'
 
 const features = [
@@ -37,15 +38,18 @@ export function Onboarding() {
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+1.5rem)] sm:px-8 lg:flex-row lg:items-center lg:gap-20 lg:px-12 lg:py-12">
         <section className="flex-1 lg:max-w-xl">
-          <Wordmark markSize={34} />
+          <div className="flex items-center justify-between gap-4">
+            <Wordmark markSize={34} />
+            <ThemeToggle />
+          </div>
 
           <div className="mt-10 lg:mt-16">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted">
+            <span className="inline-flex items-center gap-2 rounded-full border border-fg/10 bg-fg/[0.04] px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-mint" />
               Your days, in motion
             </span>
 
-            <h1 className="mt-5 text-balance font-display text-[3.1rem] font-extrabold leading-[0.9] tracking-[-0.055em] text-cream sm:text-6xl xl:text-[4.4rem]">
+            <h1 className="mt-5 text-balance font-display text-[3.1rem] font-extrabold leading-[0.9] tracking-[-0.055em] text-fg sm:text-6xl xl:text-[4.4rem]">
               Go make some{' '}
               <span className="bg-gradient-to-r from-coral via-punch to-violet bg-clip-text text-transparent">
                 good days.
@@ -62,13 +66,13 @@ export function Onboarding() {
             {features.map(({ icon: Icon, color, title, body }) => (
               <div key={title} className="flex items-start gap-3.5">
                 <span
-                  className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.07]"
+                  className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fg/[0.07]"
                   style={{ backgroundColor: `${color}1f`, color }}
                 >
                   <Icon className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-sm font-extrabold text-cream">{title}</p>
+                  <p className="text-sm font-extrabold text-fg">{title}</p>
                   <p className="mt-0.5 max-w-sm text-xs font-medium leading-relaxed text-muted">{body}</p>
                 </div>
               </div>
@@ -79,20 +83,20 @@ export function Onboarding() {
         <section className="mt-10 w-full lg:mt-0 lg:max-w-[420px]">
           <div className="relative">
             <div
-              className="absolute -right-4 -top-5 z-10 hidden rotate-3 items-center gap-1.5 rounded-full border border-ink/20 bg-sun px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink shadow-xl sm:flex"
+              className="absolute -right-4 -top-5 z-10 hidden rotate-3 items-center gap-1.5 rounded-full border border-page/20 bg-sun px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink shadow-xl sm:flex"
               aria-hidden
             >
               No accounts. No noise.
             </div>
 
-            <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-surface/85 p-6 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-8">
+            <div className="relative overflow-hidden rounded-[32px] border border-fg/10 bg-surface/85 p-6 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-8">
               <div
                 className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-violet/15 blur-3xl"
                 aria-hidden
               />
               <div className="relative">
                 <p className="eyebrow">First things first</p>
-                <h2 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.04em] text-cream">
+                <h2 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.04em] text-fg">
                   Who's planning?
                 </h2>
                 <p className="mt-2 text-sm font-medium leading-relaxed text-muted">
@@ -104,11 +108,11 @@ export function Onboarding() {
                   await createProfile(name, color)
                 }} />
 
-                <div className="mt-6 flex items-start gap-2.5 border-t border-white/[0.07] pt-4">
+                <div className="mt-6 flex items-start gap-2.5 border-t border-fg/[0.07] pt-4">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
                   <p className="text-[11px] font-semibold leading-relaxed text-muted">
-                    Everything is stored on this device. No account, no cloud, no one else reading over
-                    your shoulder.
+                    Offline mode keeps everything in this browser. No account, no cloud, no one else
+                    reading over your shoulder.
                   </p>
                 </div>
               </div>

@@ -17,10 +17,14 @@ import { db } from '@/db'
 import type { Activity, Trip } from '@/types'
 import { activityMeta } from '@/lib/activityMeta'
 import {
+  activityDateRangeLabel,
+  activityScheduleLabel,
+  activitySpansMultipleDays,
   dateKey,
+  eachDayKey,
   formatDay,
-  formatTimeValue,
   getUpNext,
+  occursOn,
   phaseLabel,
   sortActivities,
   tripCountdownLabel,
@@ -52,13 +56,13 @@ export function TodayPage() {
   const { openCreate, openDetail } = useActivityViews()
   const { toast } = useToast()
 
-  const activities = useLiveQuery(
+  const allActivities = useLiveQuery(
     () =>
       profileId
-        ? db.activities.where('[profileId+date]').equals([profileId, today]).toArray()
+        ? db.activities.where('profileId').equals(profileId).toArray()
         : Promise.resolve([] as Activity[]),
-    [profileId, today],
-    [],
+    [profileId],
+    [] as Activity[],
   )
 
   const trips = useLiveQuery(
@@ -70,18 +74,10 @@ export function TodayPage() {
   const tomorrow = dateKey(addDays(parseISO(today), 1))
   const horizon = dateKey(addDays(parseISO(today), 14))
 
-  const upcoming = useLiveQuery(
-    () =>
-      profileId
-        ? db.activities
-            .where('[profileId+date]')
-            .between([profileId, tomorrow], [profileId, horizon], true, true)
-            .toArray()
-        : Promise.resolve([] as Activity[]),
-    [profileId, tomorrow, horizon],
-    [],
+  const activities = useMemo(
+    () => allActivities.filter((activity) => occursOn(activity, today)),
+    [allActivities, today],
   )
-
   const sorted = useMemo(() => sortActivities(activities), [activities])
   const tripsById = useMemo(() => new Map(trips.map((trip) => [trip.id, trip])), [trips])
   const upNext = useMemo(() => getUpNext(sorted, now), [sorted, now])
@@ -98,21 +94,15 @@ export function TodayPage() {
   )
 
   const upcomingDays = useMemo(() => {
-    const groups = new Map<string, typeof upcoming>()
-    for (const activity of upcoming) {
-      const list = groups.get(activity.date) ?? []
-      list.push(activity)
-      groups.set(activity.date, list)
-    }
-
-    return [...groups.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(0, 3)
-      .map(([date, items]) => ({
+    return eachDayKey(tomorrow, horizon)
+      .map((date) => ({
         date,
-        items: sortActivities(items),
+        items: sortActivities(allActivities.filter((activity) => occursOn(activity, date))),
       }))
-  }, [upcoming])
+      .filter((day) => day.items.length > 0)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3)
+  }, [allActivities, tomorrow, horizon])
 
   if (!profile) return null
 
@@ -147,10 +137,10 @@ export function TodayPage() {
       {currentTrip ? (
         <Link
           to={`/trips/${currentTrip.id}`}
-          className="mb-4 flex items-center gap-3 rounded-2xl border p-2.5 pr-3.5 transition hover:bg-white/[0.05]"
+          className="mb-4 flex items-center gap-3 rounded-2xl border p-2.5 pr-3.5 transition hover:bg-fg/[0.05]"
           style={{
             borderColor: hexAlpha(currentTrip.color, 0.2),
-            background: `linear-gradient(100deg, ${hexAlpha(currentTrip.color, 0.12)}, rgba(255,255,255,0.02))`,
+            background: `linear-gradient(100deg, ${hexAlpha(currentTrip.color, 0.12)}, var(--color-sheen))`,
           }}
         >
           <span
@@ -163,7 +153,7 @@ export function TodayPage() {
             <span className="block text-[9px] font-extrabold uppercase tracking-[0.18em] text-muted">
               On the road
             </span>
-            <span className="block truncate text-sm font-extrabold text-cream">
+            <span className="block truncate text-sm font-extrabold text-fg">
               {currentTrip.name}
               <span className="font-bold text-muted"> · {tripCountdownLabel(currentTrip.startDate, currentTrip.endDate, today)}</span>
             </span>
@@ -173,7 +163,7 @@ export function TodayPage() {
       ) : nextTrip ? (
         <Link
           to={`/trips/${nextTrip.id}`}
-          className="mb-4 flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-2.5 pr-3.5 transition hover:bg-white/[0.05]"
+          className="mb-4 flex items-center gap-3 rounded-2xl border border-fg/[0.08] bg-fg/[0.03] p-2.5 pr-3.5 transition hover:bg-fg/[0.05]"
         >
           <span
             className="grid h-10 w-10 place-items-center rounded-xl text-xl"
@@ -185,7 +175,7 @@ export function TodayPage() {
             <span className="block text-[9px] font-extrabold uppercase tracking-[0.18em] text-muted">
               Next escape
             </span>
-            <span className="block truncate text-sm font-extrabold text-cream">
+            <span className="block truncate text-sm font-extrabold text-fg">
               {nextTrip.name}
               <span className="font-bold text-muted"> · {tripCountdownLabel(nextTrip.startDate, nextTrip.endDate, today)}</span>
             </span>
@@ -198,10 +188,10 @@ export function TodayPage() {
         <button
           type="button"
           onClick={() => openDetail(upNext.activity.id)}
-          className="relative w-full overflow-hidden rounded-[30px] border p-5 text-left transition hover:brightness-110 sm:p-6"
+          className="dark-scope relative w-full overflow-hidden rounded-[30px] border p-5 text-left transition hover:brightness-110 sm:p-6"
           style={{
             borderColor: hexAlpha(phaseMeta.color, 0.3),
-            background: `linear-gradient(135deg, ${hexAlpha(phaseMeta.color, 0.3)}, ${hexAlpha(phaseMeta.color, 0.09)} 48%, rgba(23,21,31,0.72))`,
+            background: `linear-gradient(135deg, ${hexAlpha(phaseMeta.color, 0.32)}, rgba(23,21,31,0.28) 48%, rgba(23,21,31,0.9)), #17151F`,
           }}
         >
           <PhaseIcon
@@ -215,7 +205,7 @@ export function TodayPage() {
           <div className="relative">
             <div className="flex items-center justify-between gap-3">
               <span
-                className="inline-flex items-center gap-1.5 rounded-full bg-black/25 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.16em] text-cream backdrop-blur"
+                className="inline-flex items-center gap-1.5 rounded-full bg-black/25 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.16em] text-fg backdrop-blur"
               >
                 {upNext.phase === 'now' ? (
                   <span className="relative flex h-1.5 w-1.5">
@@ -227,21 +217,26 @@ export function TodayPage() {
                 )}
                 {phaseLabel(upNext, now)}
               </span>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-cream/70">
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-fg/70">
                 Up next
               </span>
             </div>
 
-            <p className="mt-5 line-clamp-3 max-w-[85%] break-words text-balance font-display text-[28px] font-extrabold leading-[0.98] tracking-[-0.035em] text-cream sm:text-4xl">
+            <p className="mt-5 line-clamp-3 max-w-[85%] break-words text-balance font-display text-[28px] font-extrabold leading-[0.98] tracking-[-0.035em] text-fg sm:text-4xl">
               {upNext.activity.name}
             </p>
 
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] font-bold text-cream/80">
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] font-bold text-fg/80">
               {upNext.activity.startTime ? (
                 <span className="inline-flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: phaseMeta.color }} />
-                  {formatTimeValue(upNext.activity.startTime)}
-                  {upNext.activity.endTime ? ` – ${formatTimeValue(upNext.activity.endTime)}` : ''}
+                  {activityScheduleLabel(upNext.activity)}
+                </span>
+              ) : null}
+              {activitySpansMultipleDays(upNext.activity) ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet" />
+                  {activityDateRangeLabel(upNext.activity)}
                 </span>
               ) : null}
               {upNext.activity.location ? (
@@ -263,7 +258,7 @@ export function TodayPage() {
         <div className="relative overflow-hidden rounded-[30px] border border-mint/25 bg-gradient-to-br from-mint/[0.17] via-white/[0.03] to-transparent p-6">
           <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-mint/15 blur-3xl" />
           <CheckCircle2 className="h-7 w-7 text-mint" />
-          <p className="mt-4 font-display text-3xl font-extrabold tracking-[-0.035em] text-cream">
+          <p className="mt-4 font-display text-3xl font-extrabold tracking-[-0.035em] text-fg">
             All done. The day is yours.
           </p>
           <p className="mt-2 max-w-sm text-sm font-medium leading-relaxed text-muted">
@@ -294,12 +289,12 @@ export function TodayPage() {
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
               <p className="eyebrow">Today's plan</p>
-              <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-cream">
+              <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-fg">
                 {completed === sorted.length ? 'Every last one' : 'On the docket'}
               </p>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-extrabold text-muted">
+              <span className="rounded-full border border-fg/10 bg-fg/[0.04] px-2.5 py-1 text-[10px] font-extrabold text-muted">
                 {completed}/{sorted.length} done
               </span>
               <button
@@ -314,7 +309,7 @@ export function TodayPage() {
             </div>
           </div>
 
-          <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+          <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-fg/[0.07]">
             <div
               className="h-full rounded-full bg-gradient-to-r from-coral via-punch to-violet transition-all duration-500"
               style={{ width: `${(completed / sorted.length) * 100}%` }}
@@ -323,7 +318,6 @@ export function TodayPage() {
 
           <PlanList
             profileId={profile.id}
-            date={today}
             activities={sorted}
             tripsById={tripsById}
           />
@@ -331,7 +325,7 @@ export function TodayPage() {
           <button
             type="button"
             onClick={() => openCreate({ date: today })}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/12 py-3 text-xs font-extrabold text-muted transition hover:border-white/20 hover:bg-white/[0.03] hover:text-cream"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-fg/12 py-3 text-xs font-extrabold text-muted transition hover:border-fg/20 hover:bg-fg/[0.03] hover:text-fg"
           >
             <Plus className="h-3.5 w-3.5" />
             Add to today
@@ -344,13 +338,13 @@ export function TodayPage() {
           <div className="mb-3 flex items-end justify-between">
             <div>
               <p className="eyebrow">Coming up</p>
-              <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-cream">
+              <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-fg">
                 Just around the corner
               </p>
             </div>
             <Link
               to="/calendar"
-              className="mb-1 inline-flex items-center gap-1 text-[11px] font-extrabold text-muted transition hover:text-cream"
+              className="mb-1 inline-flex items-center gap-1 text-[11px] font-extrabold text-muted transition hover:text-fg"
             >
               Calendar
               <ChevronRight className="h-3 w-3" />
@@ -367,7 +361,7 @@ export function TodayPage() {
                   key={date}
                   to={`/calendar?date=${date}`}
                   className={cn(
-                    'group flex flex-col rounded-[22px] border border-white/[0.08] bg-white/[0.03] p-3.5 transition hover:bg-white/[0.055]',
+                    'group flex flex-col rounded-[22px] border border-fg/[0.08] bg-fg/[0.03] p-3.5 transition hover:bg-fg/[0.055]',
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -378,13 +372,13 @@ export function TodayPage() {
                       {pluralize(items.length, 'plan')}
                     </span>
                   </div>
-                  <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-cream">
+                  <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-fg">
                     {formatDay(date, 'MMM d')}
                   </p>
                   <div className="mt-2.5 flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: meta.color }} />
-                    <p className="min-w-0 truncate text-[11px] font-bold text-cream/80">
-                      {first.startTime ? `${formatTimeValue(first.startTime)} · ` : ''}
+                    <p className="min-w-0 truncate text-[11px] font-bold text-fg/80">
+                      {first.startTime || first.timeSlot ? `${activityScheduleLabel(first)} · ` : ''}
                       {first.name}
                     </p>
                   </div>

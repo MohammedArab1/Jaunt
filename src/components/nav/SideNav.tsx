@@ -53,7 +53,7 @@ export function SideNav() {
           : 'text-muted'
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col border-r border-white/[0.07] bg-ink/60 px-5 py-7 backdrop-blur-xl lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col border-r border-fg/[0.07] bg-page/60 px-5 py-7 backdrop-blur-xl lg:flex">
       <Link to="/" className="mb-10 inline-flex rounded-xl px-1">
         <Wordmark markSize={32} />
       </Link>
@@ -72,7 +72,7 @@ export function SideNav() {
               to={to}
               className={cn(
                 'relative flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-extrabold transition-colors',
-                active ? 'bg-white/[0.07] text-cream' : 'text-muted hover:bg-white/[0.04] hover:text-cream',
+                active ? 'bg-fg/[0.07] text-fg' : 'text-muted hover:bg-fg/[0.04] hover:text-fg',
               )}
             >
               {active ? (
@@ -93,7 +93,7 @@ export function SideNav() {
           >
             <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
             <span className="min-w-0 flex-1">
-              <span className="block text-[11px] font-extrabold text-cream">Sync across devices</span>
+              <span className="block text-[11px] font-extrabold text-fg">Sync across devices</span>
               <span className="mt-0.5 block text-[10px] font-medium leading-relaxed text-muted">
                 Sign in or create an account. Offline profiles stay here.
               </span>
@@ -101,7 +101,7 @@ export function SideNav() {
           </Link>
         ) : null}
 
-        <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-white/[0.06] bg-white/[0.025] px-3.5 py-3">
+        <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-fg/[0.06] bg-fg/[0.025] px-3.5 py-3">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
           <p className="text-[11px] font-semibold leading-relaxed text-muted">
             {mode === 'account'
@@ -114,11 +114,11 @@ export function SideNav() {
           <button
             type="button"
             onClick={() => navigate('/settings')}
-            className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-2.5 text-left transition hover:bg-white/[0.06]"
+            className="flex w-full items-center gap-3 rounded-2xl border border-fg/[0.08] bg-fg/[0.035] p-2.5 text-left transition hover:bg-fg/[0.06]"
           >
             <Avatar name={profile.name} color={profile.color} size="sm" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-extrabold text-cream">{profile.name}</span>
+              <span className="block truncate text-sm font-extrabold text-fg">{profile.name}</span>
               <span className={cn('block text-[10px] font-bold uppercase tracking-[0.12em]', syncColor)}>
                 {mode === 'account' ? (
                   <span className="inline-flex items-center gap-1">

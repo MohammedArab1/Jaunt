@@ -43,8 +43,10 @@ CREATE TABLE IF NOT EXISTS activities (
   trip_id text,
   name text NOT NULL,
   date date NOT NULL,
+  end_date date,
   start_time text,
   end_time text,
+  time_slot text,
   location text,
   type text NOT NULL,
   notes text,
@@ -60,6 +62,26 @@ CREATE TABLE IF NOT EXISTS activities (
 CREATE INDEX IF NOT EXISTS activities_user_revision_idx ON activities(user_id, revision);
 CREATE INDEX IF NOT EXISTS activities_user_trip_idx ON activities(user_id, trip_id);
 CREATE INDEX IF NOT EXISTS activities_user_date_idx ON activities(user_id, date);
+CREATE INDEX IF NOT EXISTS activities_trip_revision_idx ON activities(trip_id, revision);
+
+-- Add columns for databases created before multi-day plans and day-part slots.
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS end_date date;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS time_slot text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS trips_global_id_idx ON trips(id);
+CREATE UNIQUE INDEX IF NOT EXISTS activities_global_id_idx ON activities(id);
+
+CREATE TABLE IF NOT EXISTS trip_members (
+  trip_id text NOT NULL,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted')),
+  invited_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  accepted_at timestamptz,
+  PRIMARY KEY (trip_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS trip_members_user_status_idx ON trip_members(user_id, status);
+CREATE INDEX IF NOT EXISTS trip_members_trip_status_idx ON trip_members(trip_id, status);
 
 CREATE TABLE IF NOT EXISTS attachments (
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,7 +96,9 @@ CREATE TABLE IF NOT EXISTS attachments (
   PRIMARY KEY (user_id, id),
   FOREIGN KEY (user_id, activity_id) REFERENCES activities(user_id, id) ON DELETE CASCADE
 );
+CREATE UNIQUE INDEX IF NOT EXISTS attachments_global_id_idx ON attachments(id);
 CREATE INDEX IF NOT EXISTS attachments_user_revision_idx ON attachments(user_id, revision);
+CREATE INDEX IF NOT EXISTS attachments_activity_idx ON attachments(activity_id);
 
 CREATE TABLE IF NOT EXISTS attachment_files (
   user_id uuid NOT NULL,

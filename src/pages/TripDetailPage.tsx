@@ -10,14 +10,17 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Users,
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { db } from '@/db'
 import type { Activity } from '@/types'
 import {
+  activityEndDate,
   dateRangeLabel,
   eachDayKey,
   formatDay,
+  occursOn,
   sortActivities,
   tripCountdownLabel,
 } from '@/lib/dates'
@@ -25,6 +28,8 @@ import { deleteTrip, sortDayByTime } from '@/lib/repo'
 import { hexAlpha, pluralize } from '@/lib/utils'
 import { useToday } from '@/hooks/useToday'
 import { useProfile } from '@/context/ProfileContext'
+import { useAuth } from '@/context/AuthContext'
+import { useSync } from '@/context/SyncContext'
 import { useActivityViews } from '@/context/ActivityViews'
 import { useToast } from '@/context/ToastContext'
 import { Page } from '@/components/ui/Page'
@@ -33,10 +38,13 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Sheet } from '@/components/ui/Sheet'
 import { PlanList } from '@/components/plan/PlanList'
 import { TripForm } from '@/components/trips/TripForm'
+import { TripMembersSheet } from '@/components/trips/TripMembersSheet'
 
 export function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>()
   const { profile } = useProfile()
+  const { mode } = useAuth()
+  const { syncNow } = useSync()
   const today = useToday()
   const navigate = useNavigate()
   const { openCreate } = useActivityViews()
@@ -58,25 +66,21 @@ export function TripDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [membersOpen, setMembersOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
 
   const dayGroups = useMemo(() => {
     if (!trip) return []
-    const byDate = new Map<string, Activity[]>()
-    for (const activity of activities) {
-      const list = byDate.get(activity.date) ?? []
-      list.push(activity)
-      byDate.set(activity.date, list)
-    }
 
-    const dates = new Set<string>([
-      ...eachDayKey(trip.startDate, trip.endDate),
-      ...activities.map((activity) => activity.date),
-    ])
+    const allStarts = [trip.startDate, ...activities.map((activity) => activity.date)]
+    const allEnds = [trip.endDate, ...activities.map((activity) => activityEndDate(activity))]
+    const start = allStarts.sort()[0] ?? trip.startDate
+    const end = allEnds.sort().at(-1) ?? trip.endDate
 
-    return [...dates]
-      .sort()
-      .map((date) => ({ date, activities: sortActivities(byDate.get(date) ?? []) }))
+    return eachDayKey(start, end).map((date) => ({
+      date,
+      activities: sortActivities(activities.filter((activity) => occursOn(activity, date))),
+    }))
   }, [trip, activities])
 
   const tripsById = useMemo(() => {
@@ -124,6 +128,8 @@ export function TripDetailPage() {
   const progress = total === 0 ? 0 : Math.round((done / total) * 100)
   const isPast = today > trip.endDate
   const status = tripCountdownLabel(trip.startDate, trip.endDate, today)
+  const isAccount = mode === 'account'
+  const isOwner = trip.role !== 'member'
   const addDate = today >= trip.startDate && today <= trip.endDate ? today : trip.startDate
 
   const sortDay = async (date: string) => {
@@ -152,7 +158,7 @@ export function TripDetailPage() {
       <button
         type="button"
         onClick={() => navigate('/trips')}
-        className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-cream"
+        className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-fg"
       >
         <ArrowLeft className="h-4 w-4" />
         All trips
@@ -174,51 +180,81 @@ export function TripDetailPage() {
         <div className="relative">
           <div className="flex items-start justify-between gap-3">
             <span
-              className="grid h-16 w-16 place-items-center rounded-[22px] border border-white/15 text-[34px] shadow-inner"
+              className="grid h-16 w-16 place-items-center rounded-[22px] border border-fg/15 text-[34px] shadow-inner"
               style={{ backgroundColor: hexAlpha(trip.color, 0.24) }}
             >
               {trip.emoji}
             </span>
 
             <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setEditOpen(true)}
-                className="btn-icon h-10 w-10 border-white/15 bg-black/20"
-                aria-label="Edit trip"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeleteOpen(true)}
-                className="btn-icon h-10 w-10 border-white/15 bg-black/20 hover:text-punch"
-                aria-label="Delete trip"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {isAccount ? (
+                <button
+                  type="button"
+                  onClick={() => setMembersOpen(true)}
+                  className="btn-icon relative h-10 w-10 border-fg/15 bg-fg/10"
+                  aria-label="Trip members"
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  {trip.memberCount ? (
+                    <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-coral px-1 text-[8px] font-extrabold text-ink">
+                      {(trip.memberCount ?? 0) + 1}
+                    </span>
+                  ) : null}
+                </button>
+              ) : null}
+              {isOwner ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setEditOpen(true)}
+                    className="btn-icon h-10 w-10 border-fg/15 bg-fg/10"
+                    aria-label="Edit trip"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteOpen(true)}
+                    className="btn-icon h-10 w-10 border-fg/15 bg-fg/10 hover:text-punch"
+                    aria-label="Delete trip"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
 
-          <span
-            className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-black/25 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.15em] text-cream backdrop-blur"
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: isPast ? '#A79FB6' : trip.color }} />
-            {status}
-          </span>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-fg/10 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.15em] text-fg backdrop-blur">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: isPast ? '#A79FB6' : trip.color }} />
+              {status}
+            </span>
+            {trip.role === 'member' ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-fg/10 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.15em] text-fg backdrop-blur">
+                <Users className="h-3 w-3" />
+                Shared with you
+              </span>
+            ) : trip.memberCount && trip.memberCount > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-fg/10 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.15em] text-fg backdrop-blur">
+                <Users className="h-3 w-3" />
+                {(trip.memberCount ?? 0) + 1} travelers
+              </span>
+            ) : null}
+          </div>
 
-          <h1 className="mt-2 break-words text-balance font-display text-[2.5rem] font-extrabold leading-[0.95] tracking-[-0.05em] text-cream sm:text-5xl">
+          <h1 className="mt-2 break-words text-balance font-display text-[2.5rem] font-extrabold leading-[0.95] tracking-[-0.05em] text-fg sm:text-5xl">
             {trip.name}
           </h1>
 
           {trip.destination ? (
-            <p className="mt-2 flex items-center gap-1.5 text-sm font-bold text-cream/80">
+            <p className="mt-2 flex items-center gap-1.5 text-sm font-bold text-fg/80">
               <MapPin className="h-3.5 w-3.5" />
               {trip.destination}
             </p>
           ) : null}
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-bold text-cream/70">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-bold text-fg/70">
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5" />
               {dateRangeLabel(trip.startDate, trip.endDate)}
@@ -231,7 +267,7 @@ export function TripDetailPage() {
 
           {total > 0 ? (
             <div className="mt-4">
-              <div className="h-1.5 overflow-hidden rounded-full bg-black/25">
+              <div className="h-1.5 overflow-hidden rounded-full bg-fg/10">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${progress}%`, backgroundColor: trip.color }}
@@ -241,7 +277,7 @@ export function TripDetailPage() {
           ) : null}
 
           {trip.notes ? (
-            <p className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/15 p-3.5 text-[13px] font-medium leading-relaxed text-cream/75">
+            <p className="mt-4 whitespace-pre-wrap rounded-2xl border border-fg/10 bg-fg/[0.04] p-3.5 text-[13px] font-medium leading-relaxed text-fg/75">
               {trip.notes}
             </p>
           ) : null}
@@ -260,7 +296,7 @@ export function TripDetailPage() {
       <div className="mt-8 flex items-end justify-between">
         <div>
           <p className="eyebrow">The days</p>
-          <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-cream">
+          <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-fg">
             Day by day
           </p>
         </div>
@@ -277,7 +313,7 @@ export function TripDetailPage() {
                   <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted/60">
                     Day {index + 1}
                   </span>
-                  <h3 className="font-display text-lg font-extrabold tracking-[-0.02em] text-cream">
+                  <h3 className="font-display text-lg font-extrabold tracking-[-0.02em] text-fg">
                     {formatDay(date, 'EEE, MMM d')}
                   </h3>
                   {date === today ? (
@@ -289,7 +325,7 @@ export function TripDetailPage() {
 
                 <div className="flex shrink-0 items-center gap-1">
                   {dayActivities.length > 0 ? (
-                    <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[9px] font-extrabold text-muted">
+                    <span className="rounded-full border border-fg/[0.08] bg-fg/[0.03] px-2 py-0.5 text-[9px] font-extrabold text-muted">
                       {dayDone}/{dayActivities.length}
                     </span>
                   ) : null}
@@ -318,7 +354,6 @@ export function TripDetailPage() {
               {dayActivities.length > 0 ? (
                 <PlanList
                   profileId={profile.id}
-                  date={date}
                   activities={dayActivities}
                   tripsById={tripsById}
                 />
@@ -326,9 +361,9 @@ export function TripDetailPage() {
                 <button
                   type="button"
                   onClick={() => openCreate({ date, tripId: trip.id })}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-white/12 p-3.5 text-left transition hover:border-white/20 hover:bg-white/[0.03]"
+                  className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-fg/12 p-3.5 text-left transition hover:border-fg/20 hover:bg-fg/[0.03]"
                 >
-                  <span className="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-white/[0.03] text-muted">
+                  <span className="grid h-7 w-7 place-items-center rounded-full border border-fg/10 bg-fg/[0.03] text-muted">
                     <Plus className="h-3.5 w-3.5" />
                   </span>
                   <span className="flex-1 text-xs font-semibold text-muted">
@@ -343,6 +378,17 @@ export function TripDetailPage() {
 
       {editOpen ? (
         <TripForm trip={trip} onClose={() => setEditOpen(false)} />
+      ) : null}
+
+      {membersOpen ? (
+        <TripMembersSheet
+          trip={trip}
+          onClose={() => setMembersOpen(false)}
+          onLeft={() => {
+            void syncNow()
+            navigate('/trips')
+          }}
+        />
       ) : null}
 
       <Sheet

@@ -8,7 +8,7 @@ export function Splash() {
         <div className="animate-float">
           <LogoMark size={64} className="shadow-2xl shadow-black/50" />
         </div>
-        <p className="font-display text-[26px] font-extrabold leading-none tracking-[-0.055em] text-cream">
+        <p className="font-display text-[26px] font-extrabold leading-none tracking-[-0.055em] text-fg">
           jaunt<span className="text-coral">.</span>
         </p>
         <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-muted">

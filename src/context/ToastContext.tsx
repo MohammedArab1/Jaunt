@@ -17,9 +17,9 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null)
 
 const toneStyles: Record<ToastTone, string> = {
-  default: 'border-white/10 bg-surface-2 text-cream',
-  success: 'border-mint/30 bg-[#13251D] text-mint',
-  error: 'border-punch/30 bg-[#2A1420] text-[#FFB3C5]',
+  default: 'border-fg/10 bg-surface-2 text-fg',
+  success: 'dark-scope border-mint/30 bg-[#13251D] text-mint',
+  error: 'dark-scope border-punch/30 bg-[#2A1420] text-punch',
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {

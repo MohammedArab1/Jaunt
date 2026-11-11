@@ -20,7 +20,7 @@ export function Field({ label, htmlFor, error, hint, icon, children, className }
       </label>
       {children}
       {error ? (
-        <p className="mt-1.5 text-xs font-semibold text-[#FF9DB6]">{error}</p>
+        <p className="mt-1.5 text-xs font-semibold text-punch">{error}</p>
       ) : hint ? (
         <p className="mt-1.5 text-xs font-medium text-muted/70">{hint}</p>
       ) : null}

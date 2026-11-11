@@ -90,7 +90,7 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
       footer={
         <>
           {error ? (
-            <p className="mb-3 rounded-xl border border-punch/20 bg-punch/10 px-3 py-2 text-xs font-bold text-[#FFB3C5]" role="alert">
+            <p className="mb-3 rounded-xl border border-punch/20 bg-punch/10 px-3 py-2 text-xs font-bold text-punch" role="alert">
               {error}
             </p>
           ) : null}
@@ -111,7 +111,7 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
           className="relative flex items-center gap-4 overflow-hidden rounded-[24px] border p-4"
           style={{
             borderColor: hexAlpha(color, 0.25),
-            background: `linear-gradient(135deg, ${hexAlpha(color, 0.18)}, rgba(255,255,255,0.02) 65%)`,
+            background: `linear-gradient(135deg, ${hexAlpha(color, 0.18)}, var(--color-sheen) 65%)`,
           }}
         >
           <span
@@ -122,7 +122,7 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
           </span>
           <div className="min-w-0">
             <p className="eyebrow">Trip preview</p>
-            <p className="truncate font-display text-xl font-extrabold tracking-[-0.02em] text-cream">
+            <p className="truncate font-display text-xl font-extrabold tracking-[-0.02em] text-fg">
               {name.trim() || 'Your next adventure'}
             </p>
             <p className="mt-0.5 text-[11px] font-bold text-muted">
@@ -202,7 +202,7 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
                 className="aspect-square w-full rounded-full transition-transform hover:scale-110 active:scale-95"
                 style={{
                   backgroundColor: option,
-                  boxShadow: color === option ? `0 0 0 3px #0B0A10, 0 0 0 5px ${option}` : undefined,
+                  boxShadow: color === option ? `0 0 0 3px var(--color-page), 0 0 0 5px ${option}` : undefined,
                 }}
               />
             ))}
@@ -221,8 +221,8 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
                 className={cn(
                   'grid aspect-square place-items-center rounded-xl border text-lg transition',
                   emoji === option
-                    ? 'border-white/25 bg-white/[0.12]'
-                    : 'border-transparent bg-white/[0.03] hover:bg-white/[0.07]',
+                    ? 'border-fg/25 bg-fg/[0.12]'
+                    : 'border-transparent bg-fg/[0.03] hover:bg-fg/[0.07]',
                 )}
               >
                 {option}

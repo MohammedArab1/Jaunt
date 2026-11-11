@@ -2,6 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import express from 'express'
 import { pool } from '../db.js'
 import { currentUser, requireAuth } from '../auth.js'
+import { acquireSyncLock, canAccessActivity, getActivityMeta } from '../tripAccess.js'
 
 const router = Router()
 
@@ -32,29 +33,38 @@ router.put(
       return
     }
 
-    const exists = await pool.query('SELECT 1 FROM attachments WHERE user_id = $1 AND id = $2', [
-      userId,
-      attachmentId,
-    ])
-    if (exists.rowCount === 0) {
+    const attachmentResult = await pool.query<{ user_id: string; activity_id: string }>(
+      'SELECT user_id, activity_id FROM attachments WHERE id = $1 LIMIT 1',
+      [attachmentId],
+    )
+    const attachment = attachmentResult.rows[0]
+    if (!attachment) {
       res.status(404).json({ error: 'Attachment not found. Sync its metadata first.' })
       return
     }
 
+    const activity = await getActivityMeta(pool, attachment.activity_id)
+    if (!activity || !(await canAccessActivity(pool, userId, activity))) {
+      res.status(404).json({ error: 'Attachment not found.' })
+      return
+    }
+
+    const ownerId = attachment.user_id
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+      await acquireSyncLock(client)
       await client.query(
         `INSERT INTO attachment_files (user_id, attachment_id, data)
          VALUES ($1, $2, $3)
          ON CONFLICT (user_id, attachment_id) DO UPDATE SET data = EXCLUDED.data`,
-        [userId, attachmentId, body],
+        [ownerId, attachmentId, body],
       )
       await client.query(
         `UPDATE attachments
          SET revision = nextval('sync_revision_seq')
          WHERE user_id = $1 AND id = $2`,
-        [userId, attachmentId],
+        [ownerId, attachmentId],
       )
       await client.query('COMMIT')
     } catch (error) {
@@ -75,12 +85,28 @@ router.get(
     const userId = currentUser(req).id
     const attachmentId = String(req.params.id ?? '')
 
+    const attachmentResult = await pool.query<{ user_id: string; activity_id: string }>(
+      'SELECT user_id, activity_id FROM attachments WHERE id = $1 LIMIT 1',
+      [attachmentId],
+    )
+    const attachment = attachmentResult.rows[0]
+    if (!attachment) {
+      res.status(404).json({ error: 'Attachment file not found.' })
+      return
+    }
+
+    const activity = await getActivityMeta(pool, attachment.activity_id)
+    if (!activity || !(await canAccessActivity(pool, userId, activity))) {
+      res.status(404).json({ error: 'Attachment file not found.' })
+      return
+    }
+
     const result = await pool.query<{ data: Buffer; mime_type: string; name: string }>(
       `SELECT f.data, a.mime_type, a.name
        FROM attachment_files f
        JOIN attachments a ON a.user_id = f.user_id AND a.id = f.attachment_id
        WHERE f.user_id = $1 AND f.attachment_id = $2`,
-      [userId, attachmentId],
+      [attachment.user_id, attachmentId],
     )
 
     const row = result.rows[0]

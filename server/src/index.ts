@@ -6,6 +6,7 @@ import { closeDatabase, pool, prepareDatabase } from './db.js'
 import authRouter from './routes/auth.js'
 import syncRouter from './routes/sync.js'
 import attachmentsRouter from './routes/attachments.js'
+import sharingRouter from './routes/sharing.js'
 
 const app = express()
 
@@ -60,6 +61,7 @@ app.use('/api/attachments', attachmentsRouter)
 app.use(express.json({ limit: '5mb' }))
 app.use('/api/auth', authRouter)
 app.use('/api/sync', syncRouter)
+app.use('/api', sharingRouter)
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found.' })

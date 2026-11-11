@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CalendarDays,
+  CalendarRange,
+  Check,
   ChevronDown,
   Clock,
   FileText,
@@ -9,19 +11,22 @@ import {
   Link2,
   Loader2,
   MapPin,
+  Moon,
   Paperclip,
   StickyNote,
+  Sun,
+  Sunrise,
   Ticket,
   X,
 } from 'lucide-react'
 import { db } from '@/db'
-import type { Activity, ActivityDefaults, ActivityType, Attachment, Trip } from '@/types'
+import type { Activity, ActivityDefaults, ActivityType, Attachment, TimeSlot, Trip } from '@/types'
 import { ACTIVITY_TYPE_ORDER, activityMeta } from '@/lib/activityMeta'
-import { compactDateRange, todayKey } from '@/lib/dates'
+import { TIME_SLOT_META, TIME_SLOT_ORDER, compactDateRange, todayKey } from '@/lib/dates'
 import { newId } from '@/lib/id'
 import { ATTACHMENT_ACCEPT, prepareAttachment } from '@/lib/images'
 import { createActivity, deleteAttachment, saveAttachment, updateActivity } from '@/lib/repo'
-import { cn, formatBytes, getErrorMessage, hexAlpha, normalizeUrl } from '@/lib/utils'
+import { cn, cssVars, formatBytes, getErrorMessage, hexAlpha, normalizeUrl } from '@/lib/utils'
 import { useProfile } from '@/context/ProfileContext'
 import { useToast } from '@/context/ToastContext'
 import { Sheet } from '@/components/ui/Sheet'
@@ -43,6 +48,8 @@ interface ActivityEditorProps {
   onClose: () => void
 }
 
+type TimingMode = 'time' | 'slot' | 'anytime'
+
 export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorProps) {
   const { profile } = useProfile()
   const profileId = profile?.id ?? ''
@@ -51,8 +58,13 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
   const [name, setName] = useState(activity?.name ?? '')
   const [type, setType] = useState<ActivityType>(activity?.type ?? defaults?.type ?? 'experience')
   const [date, setDate] = useState(activity?.date ?? defaults?.date ?? todayKey())
+  const [endDate, setEndDate] = useState(activity?.endDate ?? '')
   const [startTime, setStartTime] = useState(activity?.startTime ?? defaults?.startTime ?? '')
   const [endTime, setEndTime] = useState(activity?.endTime ?? '')
+  const [timeSlot, setTimeSlot] = useState<TimeSlot>(activity?.timeSlot ?? 'morning')
+  const [timing, setTiming] = useState<TimingMode>(
+    activity?.timeSlot ? 'slot' : activity?.startTime || activity?.endTime ? 'time' : 'anytime',
+  )
   const [location, setLocation] = useState(activity?.location ?? '')
   const [tripId, setTripId] = useState(activity?.tripId ?? defaults?.tripId ?? '')
   const [confirmation, setConfirmation] = useState(activity?.confirmation ?? '')
@@ -98,10 +110,29 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
   )
 
   const selectedTrip = trips.find((trip) => trip.id === tripId)
+  const tripLocked = Boolean(
+    activity && selectedTrip && (selectedTrip.role === 'member' || (selectedTrip.memberCount ?? 0) > 0),
+  )
+  const effectiveEndDate = endDate && endDate > date ? endDate : date
+  const spansMultipleDays = effectiveEndDate > date
   const tripDateError =
-    selectedTrip && (date < selectedTrip.startDate || date > selectedTrip.endDate)
-      ? `This date sits outside ${selectedTrip.name} (${compactDateRange(selectedTrip.startDate, selectedTrip.endDate)}).`
+    selectedTrip &&
+    (date < selectedTrip.startDate ||
+      date > selectedTrip.endDate ||
+      effectiveEndDate < selectedTrip.startDate ||
+      effectiveEndDate > selectedTrip.endDate)
+      ? `These dates sit outside ${selectedTrip.name} (${compactDateRange(selectedTrip.startDate, selectedTrip.endDate)}).`
       : null
+
+  const updateDate = (value: string) => {
+    setDate(value)
+    if (endDate && value > endDate) setEndDate(value)
+  }
+
+  const toggleMultiDay = () => {
+    if (endDate) setEndDate('')
+    else setEndDate(date)
+  }
 
   const visibleAttachments = existingAttachments.filter((attachment) => !removedIds.includes(attachment.id))
   const attachmentCount = visibleAttachments.length + staged.length
@@ -152,11 +183,15 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
       setError('Pick a date for this plan.')
       return
     }
-    if (endTime && !startTime) {
+    if (endDate && endDate < date) {
+      setError('The end date needs to come after the start date.')
+      return
+    }
+    if (timing === 'time' && endTime && !startTime) {
       setError('Add a start time before an end time.')
       return
     }
-    if (startTime && endTime && endTime <= startTime) {
+    if (timing === 'time' && startTime && endTime && endTime <= startTime && effectiveEndDate === date) {
       setError('End time needs to be later than the start time.')
       return
     }
@@ -176,11 +211,13 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
     const record: Activity = {
       id: activity?.id ?? newId(),
       profileId: activity?.profileId ?? profile?.id ?? '',
-      tripId: selectedTrip?.id,
+      tripId: selectedTrip?.id ?? (tripId || undefined),
       name: name.trim(),
       date,
-      startTime: startTime || undefined,
-      endTime: endTime || undefined,
+      endDate: spansMultipleDays ? effectiveEndDate : undefined,
+      startTime: timing === 'time' ? startTime || undefined : undefined,
+      endTime: timing === 'time' ? endTime || undefined : undefined,
+      timeSlot: timing === 'slot' ? timeSlot : undefined,
       location: location.trim() || undefined,
       type,
       notes: notes.trim() || undefined,
@@ -233,7 +270,7 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
       footer={
         <>
           {error ? (
-            <p className="mb-3 rounded-xl border border-punch/20 bg-punch/10 px-3 py-2 text-xs font-bold text-[#FFB3C5]" role="alert">
+            <p className="mb-3 rounded-xl border border-punch/20 bg-punch/10 px-3 py-2 text-xs font-bold text-punch" role="alert">
               {error}
             </p>
           ) : null}
@@ -278,15 +315,15 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
                   className={cn(
                     'flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.05em] transition-all',
                     selected
-                      ? 'text-cream'
-                      : 'border-white/[0.07] bg-white/[0.03] text-muted hover:border-white/15 hover:bg-white/[0.05]',
+                      ? 'type-color-text'
+                      : 'border-fg/[0.07] bg-fg/[0.03] text-muted hover:border-fg/15 hover:bg-fg/[0.05]',
                   )}
                   style={
                     selected
                       ? {
+                          ...cssVars({ '--type-color': meta.color }),
                           borderColor: hexAlpha(meta.color, 0.65),
                           backgroundColor: hexAlpha(meta.color, 0.14),
-                          color: meta.color,
                         }
                       : undefined
                   }
@@ -299,44 +336,163 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Date" htmlFor="activity-date" className="col-span-2">
-            <div className="relative">
-              <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                id="activity-date"
-                type="date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                className="field pl-10"
-                required
-              />
+        <div>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <p className="field-label mb-0">Dates</p>
+            <button
+              type="button"
+              onClick={toggleMultiDay}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em] transition',
+                endDate
+                  ? 'border-violet/30 bg-violet/10 text-violet'
+                  : 'border-fg/10 bg-fg/[0.04] text-muted hover:text-fg',
+              )}
+              aria-pressed={Boolean(endDate)}
+            >
+              {endDate ? <Check className="h-3 w-3" strokeWidth={3} /> : <CalendarRange className="h-3 w-3" />}
+              Multi-day
+            </button>
+          </div>
+
+          <div className={cn('grid gap-3', endDate ? 'grid-cols-2' : 'grid-cols-1')}>
+            <Field label={endDate ? 'Start date' : 'Date'} htmlFor="activity-date">
+              <div className="relative">
+                <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                <input
+                  id="activity-date"
+                  type="date"
+                  value={date}
+                  onChange={(event) => updateDate(event.target.value)}
+                  className="field pl-10"
+                  required
+                />
+              </div>
+            </Field>
+            {endDate ? (
+              <Field label="End date" htmlFor="activity-end-date">
+                <div className="relative">
+                  <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                  <input
+                    id="activity-end-date"
+                    type="date"
+                    value={endDate}
+                    min={date}
+                    onChange={(event) => setEndDate(event.target.value)}
+                    className="field pl-10"
+                  />
+                </div>
+              </Field>
+            ) : null}
+          </div>
+          {spansMultipleDays ? (
+            <p className="mt-1.5 text-[11px] font-semibold text-violet">
+              {compactDateRange(date, effectiveEndDate)} — this plan will appear on each of those days.
+            </p>
+          ) : null}
+        </div>
+
+        <div>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <p className="field-label mb-0">Timing</p>
+            {timing === 'time' && (startTime || endTime) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartTime('')
+                  setEndTime('')
+                }}
+                className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-muted transition hover:text-fg"
+              >
+                Clear times
+              </button>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-3 gap-1 rounded-2xl border border-fg/10 bg-fg/[0.03] p-1">
+            {[
+              { value: 'time' as const, label: 'Time' },
+              { value: 'slot' as const, label: 'Part of day' },
+              { value: 'anytime' as const, label: 'Any time' },
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setTiming(option.value)}
+                className={cn(
+                  'rounded-xl px-1 py-2 text-[9px] font-extrabold uppercase tracking-[0.05em] transition',
+                  timing === option.value
+                    ? 'bg-coral text-ink shadow-sm'
+                    : 'text-muted hover:bg-fg/[0.05] hover:text-fg',
+                )}
+                aria-pressed={timing === option.value}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {timing === 'time' ? (
+            <div className="mt-2.5">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Start time" htmlFor="activity-start">
+                  <div className="relative">
+                    <Clock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                    <input
+                      id="activity-start"
+                      type="time"
+                      value={startTime}
+                      onChange={(event) => setStartTime(event.target.value)}
+                      className="field pl-10"
+                    />
+                  </div>
+                </Field>
+                <Field label="End time" htmlFor="activity-end">
+                  <div className="relative">
+                    <Clock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                    <input
+                      id="activity-end"
+                      type="time"
+                      value={endTime}
+                      onChange={(event) => setEndTime(event.target.value)}
+                      className="field pl-10"
+                    />
+                  </div>
+                </Field>
+              </div>
+              <p className="mt-1.5 text-[11px] font-medium text-muted/60">
+                Optional — leave both blank for any time. You can always clear a time with the button above.
+              </p>
             </div>
-          </Field>
-          <Field label="Starts" htmlFor="activity-start">
-            <div className="relative">
-              <Clock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                id="activity-start"
-                type="time"
-                value={startTime}
-                onChange={(event) => setStartTime(event.target.value)}
-                className="field pl-10"
-              />
+          ) : timing === 'slot' ? (
+            <div className="mt-2.5 grid grid-cols-3 gap-2">
+              {TIME_SLOT_ORDER.map((slot) => {
+                const meta = TIME_SLOT_META[slot]
+                const Icon = slot === 'morning' ? Sunrise : slot === 'afternoon' ? Sun : Moon
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => setTimeSlot(slot)}
+                    className={cn(
+                      'flex flex-col items-center gap-1 rounded-2xl border px-1 py-3 text-[9px] font-extrabold uppercase tracking-[0.06em] transition',
+                      timeSlot === slot
+                        ? 'border-coral/50 bg-coral/10 text-coral'
+                        : 'border-fg/[0.07] bg-fg/[0.03] text-muted hover:border-fg/15 hover:text-fg',
+                    )}
+                    aria-pressed={timeSlot === slot}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {meta.label}
+                  </button>
+                )
+              })}
             </div>
-          </Field>
-          <Field label="Ends" htmlFor="activity-end" hint={!startTime ? 'Leave both empty for any time.' : undefined}>
-            <div className="relative">
-              <Clock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                id="activity-end"
-                type="time"
-                value={endTime}
-                onChange={(event) => setEndTime(event.target.value)}
-                className="field pl-10"
-              />
-            </div>
-          </Field>
+          ) : (
+            <p className="mt-2.5 rounded-xl border border-dashed border-fg/10 px-3 py-2.5 text-[11px] font-medium text-muted">
+              No fixed time. This plan will sit on the day without a schedule.
+            </p>
+          )}
         </div>
 
         <Field label="Where" htmlFor="activity-location">
@@ -359,7 +515,8 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
               id="activity-trip"
               value={selectedTrip?.id ?? ''}
               onChange={(event) => setTripId(event.target.value)}
-              className="field appearance-none pr-10"
+              className="field appearance-none pr-10 disabled:opacity-60"
+              disabled={tripLocked}
             >
               <option value="">No trip — a loose plan</option>
               {trips.map((trip) => (
@@ -371,15 +528,16 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
             <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           </div>
           {tripDateError ? (
-            <p className="mt-1.5 text-xs font-semibold text-[#FF9DB6]">{tripDateError}</p>
+            <p className="mt-1.5 text-xs font-semibold text-punch">{tripDateError}</p>
           ) : selectedTrip ? (
             <p className="mt-1.5 text-xs font-medium text-muted/70">
               {selectedTrip.emoji} {compactDateRange(selectedTrip.startDate, selectedTrip.endDate)}
+              {tripLocked ? ' · Shared plans stay in their trip.' : ''}
             </p>
           ) : null}
         </Field>
 
-        <div className="space-y-4 rounded-[24px] border border-white/[0.07] bg-white/[0.022] p-4">
+        <div className="space-y-4 rounded-[24px] border border-fg/[0.07] bg-fg/[0.022] p-4">
           <p className="eyebrow">Booking details</p>
 
           <Field label="Confirmation number" htmlFor="activity-confirmation" icon={<Ticket className="h-3 w-3" />}>
@@ -438,12 +596,12 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
             {staged.map((file) => (
               <div
                 key={file.key}
-                className="group relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"
+                className="group relative aspect-square overflow-hidden rounded-2xl border border-fg/10 bg-fg/[0.04]"
               >
                 {file.previewUrl ? (
                   <img src={file.previewUrl} alt={file.name} className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#1B1721] p-2 text-center">
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-surface-2 p-2 text-center">
                     <FileText className="h-6 w-6 text-coral" />
                     <span className="line-clamp-2 text-[9px] font-bold leading-tight text-muted">{file.name}</span>
                   </div>
@@ -451,7 +609,7 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
                 <button
                   type="button"
                   onClick={() => removeStaged(file)}
-                  className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-cream backdrop-blur transition hover:bg-black"
+                  className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white backdrop-blur transition hover:bg-black"
                   aria-label={`Remove ${file.name}`}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -464,7 +622,7 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] text-muted transition hover:border-coral/40 hover:bg-coral/[0.05] hover:text-coral disabled:opacity-50"
+                className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-fg/15 bg-fg/[0.02] text-muted transition hover:border-coral/40 hover:bg-coral/[0.05] hover:text-coral disabled:opacity-50"
               >
                 {uploading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />

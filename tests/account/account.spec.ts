@@ -4,6 +4,12 @@ import path from 'node:path'
 const password = 'supersecret123'
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8080'
 
+function localDayKey(offset: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + offset)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 function uniqueEmail(prefix: string): string {
   return `${prefix}+${Date.now()}-${Math.floor(Math.random() * 10_000)}@example.com`
 }
@@ -201,5 +207,59 @@ test('syncs a trip across devices and keeps plans when the trip is deleted', asy
     await expect(check.page.getByText('Sync trip')).toHaveCount(0)
   } finally {
     await check.close()
+  }
+})
+
+
+test('invites another account into a shared trip', async ({ browser }) => {
+  const base = baseURL
+  const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'en-US' }
+  const alexContext = await browser.newContext({ baseURL: base, ...phone })
+  const samContext = await browser.newContext({ baseURL: base, ...phone })
+  const alex = await alexContext.newPage()
+  const sam = await samContext.newPage()
+
+  try {
+    await register(alex, uniqueEmail('alex.share'))
+    await register(sam, uniqueEmail('sam.share'))
+
+    await alex.getByRole('link', { name: 'Trips' }).click()
+    await alex.getByRole('button', { name: 'New trip' }).click()
+    await alex.getByLabel('Trip name').fill('Shared trip')
+    await alex.getByLabel('Starts').fill(localDayKey(2))
+    await alex.getByLabel('Ends').fill(localDayKey(4))
+    await alex.getByRole('button', { name: 'Create trip' }).click()
+    await expect(alex.getByRole('heading', { name: 'Shared trip' })).toBeVisible()
+
+    await alex.getByRole('button', { name: 'Trip members' }).click()
+    const samEmail = await sam.evaluate(() => {
+      const cached = localStorage.getItem('jaunt.cachedUser')
+      return cached ? JSON.parse(cached).email : ''
+    })
+    await alex.getByPlaceholder('their@email.com').fill(samEmail)
+    await alex.getByRole('button', { name: 'Invite', exact: true }).click()
+    await expect(alex.getByText(samEmail)).toBeVisible()
+    await alex.getByRole('button', { name: 'Done' }).click()
+
+    await sam.reload()
+    await sam.getByRole('link', { name: 'Trips' }).click()
+    await expect(sam.getByText('Trip invitations')).toBeVisible()
+    await sam.getByRole('button', { name: 'Accept' }).click()
+    await expect(sam.getByRole('link', { name: /Shared trip/ })).toBeVisible()
+    await sam.getByRole('link', { name: /Shared trip/ }).click()
+    await expect(sam.getByRole('heading', { name: 'Shared trip' })).toBeVisible()
+    await expect(sam.getByRole('button', { name: 'Edit trip' })).toHaveCount(0)
+
+    await sam.locator('main').getByRole('button', { name: 'Add a plan', exact: true }).first().click()
+    await sam.getByLabel('What is it?').fill('Plan from Sam')
+    await sam.getByRole('button', { name: 'Add plan', exact: true }).click()
+    await expect(sam.getByRole('button', { name: 'View Plan from Sam' })).toBeVisible()
+
+    await alex.waitForTimeout(4000)
+    await alex.reload()
+    await alex.getByRole('button', { name: 'View Plan from Sam' }).waitFor({ timeout: 20_000 })
+  } finally {
+    await alexContext.close()
+    await samContext.close()
   }
 })

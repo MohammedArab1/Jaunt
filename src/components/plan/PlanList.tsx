@@ -13,14 +13,13 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSo
 import { db } from '@/db'
 import type { Activity, Trip } from '@/types'
 import { sortActivities } from '@/lib/dates'
-import { reorderDay, setActivityCompleted } from '@/lib/repo'
+import { reorderVisibleActivities, setActivityCompleted } from '@/lib/repo'
 import { useActivityViews } from '@/context/ActivityViews'
 import { useToast } from '@/context/ToastContext'
 import { ActivityCard } from './ActivityCard'
 
 interface PlanListProps {
   profileId: string
-  date: string
   activities: Activity[]
   tripsById: Map<string, Trip>
   empty?: ReactNode
@@ -29,7 +28,6 @@ interface PlanListProps {
 
 export function PlanList({
   profileId,
-  date,
   activities,
   tripsById,
   empty,
@@ -94,7 +92,7 @@ export function PlanList({
     setItems(next)
 
     try {
-      await reorderDay(profileId, date, next.map((activity) => activity.id))
+      await reorderVisibleActivities(profileId, next.map((activity) => activity.id))
     } catch {
       setItems(sorted)
       toast('Could not reorder those plans.', 'error')

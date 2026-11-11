@@ -76,7 +76,7 @@ export function ProfileForm({
                 className="relative grid aspect-square w-full place-items-center rounded-full transition-transform hover:scale-105 active:scale-95"
                 style={{
                   backgroundColor: option.value,
-                  boxShadow: selected ? `0 0 0 3px #0B0A10, 0 0 0 5px ${option.value}` : undefined,
+                  boxShadow: selected ? `0 0 0 3px var(--color-page), 0 0 0 5px ${option.value}` : undefined,
                 }}
               >
                 {selected ? <Check className="h-4 w-4 text-ink" strokeWidth={3.5} /> : null}
@@ -87,7 +87,7 @@ export function ProfileForm({
       </div>
 
       {error ? (
-        <p className="rounded-xl border border-punch/20 bg-punch/10 px-3 py-2 text-xs font-bold text-[#FFB3C5]" role="alert">
+        <p className="rounded-xl border border-punch/20 bg-punch/10 px-3 py-2 text-xs font-bold text-punch" role="alert">
           {error}
         </p>
       ) : null}

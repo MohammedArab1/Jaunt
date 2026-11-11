@@ -50,7 +50,7 @@ The web container serves the built app and proxies `/api` to the API container. 
 ### Sync model
 
 - Local writes mark rows dirty and queue deletions. The client pushes those first, then pulls everything new.
-- Server sync requests are serialized per user with a PostgreSQL advisory lock, so the revision cursor cannot skip concurrent commits.
+- Revision-changing operations (syncs, ticket uploads, invitations/membership changes) are serialized with a PostgreSQL advisory lock, so the revision cursor cannot skip a concurrent commit.
 - Attachment metadata syncs with the plan data; file bytes upload/download separately.
 - Conflicts resolve **last-sync-wins**. This is a personal planner, not a real-time collaborative editor; simultaneous edits of the same plan on two devices are not merged field-by-field.
 - Signing out removes that account's offline cache from the browser. Server data remains.
@@ -146,6 +146,16 @@ npm run test:e2e       # guest/offline Playwright tests (starts its own preview 
 
 Registration is deliberately plain: **email + password**. There is no email verification and no password-reset email flow because Jaunt does not assume you have SMTP configured.
 
+### Shared trips
+
+Any account owner can open a trip → **People** → invite another user by email. Invitations require the other person to already have a Jaunt account; nothing is sent by email. Instead, pending invitations appear on their **Trips** page the next time they open it. They can accept or decline.
+
+- **Owners** can edit trip details, invite/remove people, and delete the trip.
+- **Members** can view the trip and add, edit, complete, reorder, or delete plans and ticket files. They cannot change trip details or manage members.
+- Members can leave a shared trip from the People sheet.
+- Accepted shared trips sync down and work offline like any other trip. Removing someone from a trip clears the shared copy on their device the next time they sync.
+- As with any other account data, invite acceptance and member changes require a connection.
+
 Security details:
 
 - Passwords are hashed with bcrypt (cost 12 by default).
@@ -162,7 +172,7 @@ Account display name and color start from the email and can be changed in **Sett
 
 ### Deleting an account
 
-There is no self-service “delete account” button yet. Deleting the user row cascades to trips, plans, attachments, and sessions:
+There is no self-service “delete account” button yet. Deleting the user row cascades to trips, plans, attachments, sessions, and shared-trip memberships:
 
 ```bash
 docker compose exec db psql -U jaunt -d jaunt \
@@ -240,7 +250,7 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-Covers: offline onboarding, local profiles, plan creation, drag reorder, completion persistence, offline reload, trips, guest backups/restore, and the sign-in gate with “Continue offline.”
+Covers: offline onboarding, local profiles, plan creation, drag reorder, completion persistence, offline reload, trips, guest backups/restore, multi-day plans, day-part timing, empty time fields, light mode persistence, and the sign-in gate with “Continue offline.”
 
 ### Account / full-stack suite
 
@@ -251,7 +261,7 @@ docker compose up -d --build
 E2E_BASE_URL=http://localhost:8080 npm run test:account
 ```
 
-If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, completion state, offline queued edits, service-worker offline reload, and importing a guest profile into an account.
+If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, completion state, offline queued edits, service-worker offline reload, importing a guest profile into an account, and inviting another account into a trip.
 
 Type-checking is part of `npm run build`; run `npm run typecheck` for the client and `cd server && npm run typecheck` for the API.
 
@@ -261,8 +271,8 @@ Type-checking is part of `npm run build`; run `npm run typecheck` for the client
 
 ```
 src/                    React app
-  components/           UI, plans, trips, navigation, sheets, sync banner
-  context/              auth, profiles, sync, toasts, install prompt, activity sheets
+  components/           UI, plans, trips, navigation, sheets, sync banner, members
+  context/              auth, profiles, sync, theme, toasts, install prompt, activity sheets
   hooks/                today/now clocks
   lib/                  API client, sync engine, repos, backup, image prep, dates
   pages/                Auth, Today, Calendar, Trips, Trip detail, Settings, Onboarding
@@ -270,9 +280,10 @@ src/                    React app
   types.ts              shared client/sync types
 server/                 Node + Express API
   src/auth.ts           sessions, password hashing, auth middleware
-  src/routes/           auth, sync, attachment endpoints
-  src/schema.ts         PostgreSQL schema applied at startup
+  src/routes/           auth, sync, attachments, sharing/invitations
+  src/schema.ts         PostgreSQL schema + startup migrations
   src/db.ts             pg pool + retry logic
+  src/tripAccess.ts     shared-trip access, tombstones, revision bumps
 deploy/nginx.conf       static app + /api reverse proxy + caching
 Dockerfile              web image
 server/Dockerfile       API image
@@ -289,6 +300,7 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 - Dexie / IndexedDB for offline data and attachment cache
 - dnd-kit for reorderable plans
 - Radix Dialog for accessible sheets
+- Theme tokens + `theme-init.js` for instant light/dark/accent loading
 - Node 24 + Express 5 + `pg`
 - PostgreSQL 17
 - bcryptjs, HTTP-only session cookies
@@ -315,7 +327,7 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 ## Customizing
 
 - App name/title: `index.html`, `vite.config.ts` (PWA manifest), and `package.json`.
-- Brand colors/theme: CSS variables in `src/index.css`.
+- Brand colors/theme: CSS variables in `src/index.css`, accent choices in `src/context/ThemeContext.tsx`.
 - Profile/trip color swatches: `src/lib/palette.ts`.
 - Activity types and colors: `src/lib/activityMeta.tsx`.
 - App icon: replace `public/logo.svg`, then run `npm run icons`.
@@ -326,9 +338,12 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 
 ## Known limitations
 
-- **Last-sync-wins conflicts.** There is no field-level merge for simultaneous edits. It is built for personal use across your own devices.
+- **Last-sync-wins conflicts.** There is no field-level merge for simultaneous edits. It is built for personal use across your own devices and small shared trips.
 - **No email verification or password reset.** Registration is plain email + password, as requested; no SMTP dependency.
 - **No self-service account deletion UI.** Use the SQL command above.
+- **Trip invitations are in-app only.** No email is sent; the invited person must already have an account and open their Trips page.
+- **Owners manage the trip shell.** Only the owner can rename/redate a trip, manage members, or delete it; members can edit the itinerary itself.
+- **Theme settings are per browser.** They do not sync between devices or accounts.
 - **Guest data is local to one browser.** Use backup/restore or import into an account to move it.
 - **Signing out clears the offline account cache.** Sync first if changes have not gone up.
 - **Attachments live in PostgreSQL.** Convenient for backups, but large ticket libraries increase database size.

@@ -20,9 +20,17 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import { db } from '@/db'
 import type { Activity, Trip } from '@/types'
-import { dateKey, formatDay, sortActivities } from '@/lib/dates'
+import {
+  activityEndDate,
+  dateKey,
+  eachDayKey,
+  formatDay,
+  occursOn,
+  overlapsRange,
+  sortActivities,
+} from '@/lib/dates'
 import { sortDayByTime } from '@/lib/repo'
-import { cn, hexAlpha, pluralize } from '@/lib/utils'
+import { cn, cssVars, hexAlpha, pluralize } from '@/lib/utils'
 import { useToday } from '@/hooks/useToday'
 import { useProfile } from '@/context/ProfileContext'
 import { useActivityViews } from '@/context/ActivityViews'
@@ -65,25 +73,13 @@ export function CalendarPage() {
   const rangeStart = dateKey(gridStart)
   const rangeEnd = dateKey(gridEnd)
 
-  const monthActivities = useLiveQuery(
+  const allActivities = useLiveQuery(
     () =>
       profileId
-        ? db.activities
-            .where('[profileId+date]')
-            .between([profileId, rangeStart], [profileId, rangeEnd], true, true)
-            .toArray()
+        ? db.activities.where('profileId').equals(profileId).toArray()
         : Promise.resolve([] as Activity[]),
-    [profileId, rangeStart, rangeEnd],
-    [],
-  )
-
-  const selectedActivities = useLiveQuery(
-    () =>
-      profileId
-        ? db.activities.where('[profileId+date]').equals([profileId, selected]).toArray()
-        : Promise.resolve([] as Activity[]),
-    [profileId, selected],
-    [],
+    [profileId],
+    [] as Activity[],
   )
 
   const trips = useLiveQuery(
@@ -94,22 +90,32 @@ export function CalendarPage() {
 
   const activitiesByDate = useMemo(() => {
     const map = new Map<string, Activity[]>()
-    for (const activity of monthActivities) {
-      const list = map.get(activity.date) ?? []
-      list.push(activity)
-      map.set(activity.date, list)
+    for (const activity of allActivities) {
+      const start = activity.date > rangeStart ? activity.date : rangeStart
+      const end = activityEndDate(activity) < rangeEnd ? activityEndDate(activity) : rangeEnd
+      if (start > end) continue
+      for (const day of eachDayKey(start, end)) {
+        const list = map.get(day) ?? []
+        list.push(activity)
+        map.set(day, list)
+      }
     }
     return map
-  }, [monthActivities])
+  }, [allActivities, rangeStart, rangeEnd])
 
-  const selectedSorted = useMemo(() => sortActivities(selectedActivities), [selectedActivities])
+  const selectedSorted = useMemo(
+    () => sortActivities(allActivities.filter((activity) => occursOn(activity, selected))),
+    [allActivities, selected],
+  )
   const tripsById = useMemo(() => new Map(trips.map((trip) => [trip.id, trip])), [trips])
   const selectedTrips = trips.filter((trip) => selected >= trip.startDate && selected <= trip.endDate)
   const selectedCompleted = selectedSorted.filter((activity) => activity.completed).length
 
   const monthStartKey = dateKey(startOfMonth(cursor))
   const monthEndKey = dateKey(endOfMonth(cursor))
-  const monthPlans = monthActivities.filter((activity) => activity.date >= monthStartKey && activity.date <= monthEndKey)
+  const monthPlans = allActivities.filter((activity) =>
+    overlapsRange(activity, monthStartKey, monthEndKey),
+  )
   const monthTrips = trips.filter((trip) => trip.startDate <= monthEndKey && trip.endDate >= monthStartKey)
   const isCurrentMonth = format(cursor, 'yyyy-MM') === format(parseISO(today), 'yyyy-MM')
 
@@ -164,7 +170,7 @@ export function CalendarPage() {
           </button>
 
           <div className="text-center">
-            <h2 className="font-display text-xl font-extrabold tracking-[-0.03em] text-cream sm:text-2xl">
+            <h2 className="font-display text-xl font-extrabold tracking-[-0.03em] text-fg sm:text-2xl">
               {format(cursor, 'MMMM yyyy')}
             </h2>
             <p className="mt-0.5 text-[10px] font-bold text-muted">
@@ -177,7 +183,7 @@ export function CalendarPage() {
               <button
                 type="button"
                 onClick={goToday}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-muted transition hover:text-cream"
+                className="rounded-full border border-fg/10 bg-fg/[0.04] px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-muted transition hover:text-fg"
               >
                 Today
               </button>
@@ -208,7 +214,7 @@ export function CalendarPage() {
       <section className="surface mt-4 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-end gap-2.5">
-            <span className="font-display text-[2.8rem] font-extrabold leading-none tracking-[-0.06em] text-cream">
+            <span className="font-display text-[2.8rem] font-extrabold leading-none tracking-[-0.06em] text-fg">
               {formatDay(selected, 'd')}
             </span>
             <div className="pb-0.5">
@@ -224,7 +230,7 @@ export function CalendarPage() {
               </div>
               <p className="text-sm font-bold text-muted">
                 {formatDay(selected, 'MMMM yyyy')}
-                <span className="mx-1.5 text-white/20">·</span>
+                <span className="mx-1.5 text-fg/20">·</span>
                 {selectedSorted.length === 0
                   ? 'wide open'
                   : `${selectedCompleted}/${selectedSorted.length} done`}
@@ -247,7 +253,7 @@ export function CalendarPage() {
             <button
               type="button"
               onClick={() => openCreate({ date: selected })}
-              className="btn-icon h-10 w-10 border-0 bg-coral text-ink hover:bg-[#ff7d61]"
+              className="btn-icon h-10 w-10 border-0 bg-coral text-ink hover:brightness-110"
               aria-label={`Add a plan on ${formatDay(selected, 'MMMM d')}`}
             >
               <Plus className="h-4 w-4" strokeWidth={3} />
@@ -261,8 +267,8 @@ export function CalendarPage() {
               <Link
                 key={trip.id}
                 to={`/trips/${trip.id}`}
-                className="chip max-w-full"
-                style={{ backgroundColor: hexAlpha(trip.color, 0.13), color: trip.color }}
+                className="trip-color-text chip max-w-full"
+                style={{ ...cssVars({ '--trip-color': trip.color }), backgroundColor: hexAlpha(trip.color, 0.13) }}
               >
                 <span>{trip.emoji}</span>
                 <span className="truncate">{trip.name}</span>
@@ -275,16 +281,15 @@ export function CalendarPage() {
           {selectedSorted.length > 0 ? (
             <PlanList
               profileId={profile.id}
-              date={selected}
               activities={selectedSorted}
               tripsById={tripsById}
             />
           ) : (
-            <div className="rounded-2xl border border-dashed border-white/12 px-5 py-8 text-center">
-              <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-muted">
+            <div className="rounded-2xl border border-dashed border-fg/12 px-5 py-8 text-center">
+              <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-2xl border border-fg/[0.08] bg-fg/[0.04] text-muted">
                 <CalendarPlus className="h-5 w-5" />
               </div>
-              <p className={cn('font-display text-lg font-extrabold tracking-[-0.02em] text-cream')}>
+              <p className={cn('font-display text-lg font-extrabold tracking-[-0.02em] text-fg')}>
                 A little breathing room
               </p>
               <p className="mx-auto mt-1 max-w-xs text-xs font-medium leading-relaxed text-muted">

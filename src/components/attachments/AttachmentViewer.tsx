@@ -52,11 +52,11 @@ export function AttachmentViewer({ attachment, onClose }: AttachmentViewerProps)
     <Dialog.Root open={Boolean(attachment)} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="animate-fade-in fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm" />
-        <Dialog.Content className="fixed inset-0 z-[61] flex flex-col outline-none">
+        <Dialog.Content className="dark-scope fixed inset-0 z-[61] flex flex-col outline-none">
           <Dialog.Title className="sr-only">{attachment?.name ?? 'Attachment'}</Dialog.Title>
           <div className="flex items-center gap-3 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.9rem)] sm:px-6">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-extrabold text-cream">{attachment?.name}</p>
+              <p className="truncate text-sm font-extrabold text-fg">{attachment?.name}</p>
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
                 {attachment ? formatBytes(attachment.size) : ''}
               </p>
@@ -87,7 +87,7 @@ export function AttachmentViewer({ attachment, onClose }: AttachmentViewerProps)
             {failed ? (
               <p className="text-sm font-semibold text-muted">This file could not be loaded.</p>
             ) : !url ? (
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-coral" />
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-fg/20 border-t-coral" />
             ) : isImage ? (
               <img
                 src={url}

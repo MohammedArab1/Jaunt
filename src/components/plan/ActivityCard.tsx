@@ -1,10 +1,15 @@
 import type { Activity, Trip } from '@/types'
-import { Check, GripVertical, MapPin, Paperclip } from 'lucide-react'
+import { CalendarRange, Check, GripVertical, MapPin, Paperclip } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { activityMeta } from '@/lib/activityMeta'
-import { formatTimeValue } from '@/lib/dates'
-import { cn, hexAlpha } from '@/lib/utils'
+import {
+  activityDateRangeLabel,
+  activitySpansMultipleDays,
+  formatTimeSlot,
+  formatTimeValue,
+} from '@/lib/dates'
+import { cn, cssVars, hexAlpha } from '@/lib/utils'
 
 interface ActivityCardProps {
   activity: Activity
@@ -44,12 +49,21 @@ export function ActivityCard({
       className={cn('group/plan flex gap-2.5 sm:gap-3', isDragging && 'relative z-30')}
     >
       <div className="w-[50px] shrink-0 pt-3.5 text-right sm:w-[58px]">
-        {activity.startTime ? (
+        {activity.timeSlot ? (
+          <p
+            className={cn(
+              'text-[8px] font-extrabold uppercase leading-tight tracking-[0.04em]',
+              completed ? 'text-muted/50 line-through' : 'text-fg',
+            )}
+          >
+            {formatTimeSlot(activity.timeSlot)}
+          </p>
+        ) : activity.startTime ? (
           <>
             <p
               className={cn(
                 'text-[11px] font-extrabold leading-tight tracking-[-0.01em]',
-                completed ? 'text-muted/50 line-through' : 'text-cream',
+                completed ? 'text-muted/50 line-through' : 'text-fg',
               )}
             >
               {formatTimeValue(activity.startTime)}
@@ -67,8 +81,8 @@ export function ActivityCard({
 
       <article
         className={cn(
-          'flex min-w-0 flex-1 items-stretch overflow-hidden rounded-[22px] border bg-white/[0.035] transition-all duration-200',
-          completed ? 'border-white/[0.06] bg-white/[0.015]' : 'border-white/[0.09] hover:bg-white/[0.055]',
+          'flex min-w-0 flex-1 items-stretch overflow-hidden rounded-[22px] border bg-fg/[0.035] transition-all duration-200',
+          completed ? 'border-fg/[0.06] bg-fg/[0.015]' : 'border-fg/[0.09] hover:bg-fg/[0.055]',
           isDragging && 'border-coral/40 shadow-2xl shadow-black/50',
         )}
         style={
@@ -76,7 +90,7 @@ export function ActivityCard({
             ? undefined
             : {
                 borderColor: hexAlpha(meta.color, 0.19),
-                background: `linear-gradient(135deg, ${hexAlpha(meta.color, 0.075)}, rgba(255,255,255,0.028) 58%)`,
+                background: `linear-gradient(135deg, ${hexAlpha(meta.color, 0.075)}, var(--color-sheen) 58%)`,
               }
         }
       >
@@ -88,24 +102,27 @@ export function ActivityCard({
         >
           <span
             className={cn(
-              'mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.06]',
+              'type-color-text mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fg/[0.06]',
               completed && 'opacity-50 grayscale',
             )}
-            style={{ backgroundColor: hexAlpha(meta.color, 0.14), color: meta.color }}
+            style={{ ...cssVars({ '--type-color': meta.color }), backgroundColor: hexAlpha(meta.color, 0.14) }}
           >
             <Icon className="h-[17px] w-[17px]" strokeWidth={2.2} />
           </span>
 
           <span className="min-w-0 flex-1">
             <span
-              className="block text-[9px] font-extrabold uppercase tracking-[0.17em]"
-              style={{ color: completed ? undefined : meta.color }}
+              className={cn(
+                'block text-[9px] font-extrabold uppercase tracking-[0.17em]',
+                completed ? 'text-muted/50' : 'type-color-text',
+              )}
+              style={completed ? undefined : cssVars({ '--type-color': meta.color })}
             >
               {meta.label}
             </span>
             <span
               className={cn(
-                'mt-0.5 block break-words text-[15px] font-extrabold leading-snug tracking-[-0.01em] text-cream',
+                'mt-0.5 block break-words text-[15px] font-extrabold leading-snug tracking-[-0.01em] text-fg',
                 completed && 'text-muted/60 line-through decoration-muted/40',
               )}
             >
@@ -119,25 +136,31 @@ export function ActivityCard({
               </span>
             ) : null}
 
-            {trip || attachmentCount > 0 || activity.confirmation ? (
+            {trip || attachmentCount > 0 || activity.confirmation || activitySpansMultipleDays(activity) ? (
               <span className="mt-2 flex flex-wrap items-center gap-1.5">
+                {activitySpansMultipleDays(activity) ? (
+                  <span className="chip bg-violet/15 text-violet">
+                    <CalendarRange className="h-2.5 w-2.5" />
+                    {activityDateRangeLabel(activity)}
+                  </span>
+                ) : null}
                 {trip ? (
                   <span
-                    className="chip max-w-full gap-1"
-                    style={{ backgroundColor: hexAlpha(trip.color, 0.13), color: trip.color }}
+                    className="trip-color-text chip max-w-full gap-1"
+                    style={{ ...cssVars({ '--trip-color': trip.color }), backgroundColor: hexAlpha(trip.color, 0.13) }}
                   >
                     <span className="text-[10px] leading-none">{trip.emoji}</span>
                     <span className="truncate">{trip.name}</span>
                   </span>
                 ) : null}
                 {attachmentCount > 0 ? (
-                  <span className="chip bg-white/[0.06] text-muted">
+                  <span className="chip bg-fg/[0.06] text-muted">
                     <Paperclip className="h-2.5 w-2.5" />
                     {attachmentCount}
                   </span>
                 ) : null}
                 {activity.confirmation ? (
-                  <span className="chip bg-white/[0.06] text-muted">#{activity.confirmation}</span>
+                  <span className="chip bg-fg/[0.06] text-muted">#{activity.confirmation}</span>
                 ) : null}
               </span>
             ) : null}
@@ -154,7 +177,7 @@ export function ActivityCard({
               'grid h-9 w-9 place-items-center rounded-full border-2 transition-all duration-200 active:scale-90',
               completed
                 ? 'border-mint bg-mint text-ink'
-                : 'border-white/15 text-transparent hover:border-mint/70 hover:text-mint/70',
+                : 'border-fg/15 text-transparent hover:border-mint/70 hover:text-mint/70',
             )}
           >
             <Check className="h-4 w-4" strokeWidth={3} />
