@@ -1,0 +1,164 @@
+import { expect, test, type Page } from '@playwright/test'
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('jaunt.guestMode', '1')
+  })
+})
+import { readFile } from 'node:fs/promises'
+
+function localDayKey(offset: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + offset)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+async function onboard(page: Page, name = 'Mo') {
+  await page.goto('/')
+  await page.getByLabel('Your name').fill(name)
+  await page.getByRole('button', { name: 'Start planning' }).click()
+  await expect(page.getByRole('heading', { name: new RegExp(`Good .*${name}`) })).toBeVisible()
+}
+
+test('registers the service worker during offline onboarding', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Start planning' })).toBeVisible()
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        if (!('serviceWorker' in navigator)) return false
+        await navigator.serviceWorker.ready
+        return Boolean(navigator.serviceWorker.controller)
+      }),
+    )
+    .toBe(true)
+})
+
+async function addLoosePlan(page: Page, name: string, startTime?: string) {
+  await page.getByLabel('Add a plan', { exact: true }).click()
+  await page.getByLabel('What is it?').fill(name)
+  if (startTime) await page.getByLabel('Starts').fill(startTime)
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: `View ${name}` })).toBeVisible()
+}
+
+test('plan a day, reorder it, cross things off, and reload offline', async ({ page, context }) => {
+  await onboard(page)
+  await addLoosePlan(page, 'Late plan', '18:00')
+  await addLoosePlan(page, 'Early plan', '09:00')
+
+  const names = () =>
+    page
+      .getByRole('button', { name: /^View / })
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')?.replace('View ', '')))
+
+  await expect.poll(names).toEqual(['Early plan', 'Late plan'])
+
+  const handle = page.getByRole('button', { name: 'Reorder Early plan' })
+  await handle.focus()
+  await page.keyboard.press('Space')
+  await page.waitForTimeout(200)
+  await page.keyboard.press('ArrowDown')
+  await page.waitForTimeout(250)
+  await page.keyboard.press('Space')
+  await expect.poll(names).toEqual(['Late plan', 'Early plan'])
+  await page.waitForTimeout(500)
+
+  await page.reload()
+  await expect.poll(names).toEqual(['Late plan', 'Early plan'])
+
+  const check = page.getByRole('button', { name: /Mark Early plan as/ })
+  await check.click()
+  await expect(page.getByRole('button', { name: 'Mark Early plan as not done' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+
+  await expect
+    .poll(async () => {
+      await page.evaluate(async () => {
+        await navigator.serviceWorker.ready
+      })
+      return page.evaluate(() => Boolean(navigator.serviceWorker.controller))
+    })
+    .toBe(true)
+
+  await context.setOffline(true)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('button', { name: 'View Late plan' })).toBeVisible()
+  await context.setOffline(false)
+})
+
+test('builds a trip, keeps its plans when deleted, and restores a backup', async ({ page }) => {
+  await onboard(page)
+
+  const start = localDayKey(2)
+  const end = localDayKey(4)
+
+  await page.getByRole('link', { name: 'Trips' }).click()
+  await page.getByRole('button', { name: 'New trip' }).click()
+  await page.getByLabel('Trip name').fill('Test trip')
+  await page.getByLabel('Destination').fill('Testville')
+  await page.getByLabel('Starts').fill(start)
+  await page.getByLabel('Ends').fill(end)
+  await page.getByRole('button', { name: 'Create trip' }).click()
+  await expect(page.getByRole('heading', { name: 'Test trip' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add a plan', exact: true }).first().click()
+  await page.getByLabel('What is it?').fill('Trip plan')
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'View Trip plan' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Delete trip' }).click()
+  await page.getByRole('button', { name: 'Delete trip, keep the plans' }).click()
+  await expect(page).toHaveURL(/\/trips$/)
+
+  await page.goto(`/calendar?date=${start}`)
+  await expect(page.getByRole('button', { name: 'View Trip plan' })).toBeVisible()
+
+  await page.goto('/settings')
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: /Download backup/ }).click()
+  const download = await downloadPromise
+  const backupPath = test.info().outputPath('backup.json')
+  await download.saveAs(backupPath)
+  const backup = JSON.parse(await readFile(backupPath, 'utf8'))
+  expect(backup.format).toBe('jaunt-backup')
+  expect(backup.profiles).toHaveLength(1)
+  expect(backup.activities.length).toBeGreaterThanOrEqual(1)
+
+  await page.goto('/')
+  await addLoosePlan(page, 'Erased by restore')
+  await page.goto('/settings')
+  await page.locator('input[type="file"][accept*="json"]').setInputFiles(backupPath)
+  await page.getByRole('button', { name: 'Restore backup' }).click()
+  await expect(page.getByText(/Backup restored/)).toBeVisible()
+
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'View Erased by restore' })).toHaveCount(0)
+  await page.goto(`/calendar?date=${start}`)
+  await expect(page.getByRole('button', { name: 'View Trip plan' })).toBeVisible()
+})
+
+test('adds another local profile and switches between them', async ({ page }) => {
+  await onboard(page, 'Mo')
+  await addLoosePlan(page, 'Mo plan')
+
+  await page.goto('/settings')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByLabel('Your name').fill('Sam')
+  await page.getByRole('button', { name: 'Add profile' }).click()
+  await expect(page.getByText('New profile ready.')).toBeVisible()
+
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: /Good .*Sam/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'View Mo plan' })).toHaveCount(0)
+
+  await page.goto('/settings')
+  await page.getByRole('button', { name: /Mo\s+Tap to switch/ }).click()
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'View Mo plan' })).toBeVisible()
+})

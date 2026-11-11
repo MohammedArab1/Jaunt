@@ -1,0 +1,390 @@
+import { useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import {
+  ArrowDownWideNarrow,
+  ArrowLeft,
+  CalendarDays,
+  ListChecks,
+  Loader2,
+  MapPin,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { db } from '@/db'
+import type { Activity } from '@/types'
+import {
+  dateRangeLabel,
+  eachDayKey,
+  formatDay,
+  sortActivities,
+  tripCountdownLabel,
+} from '@/lib/dates'
+import { deleteTrip, sortDayByTime } from '@/lib/repo'
+import { hexAlpha, pluralize } from '@/lib/utils'
+import { useToday } from '@/hooks/useToday'
+import { useProfile } from '@/context/ProfileContext'
+import { useActivityViews } from '@/context/ActivityViews'
+import { useToast } from '@/context/ToastContext'
+import { Page } from '@/components/ui/Page'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Sheet } from '@/components/ui/Sheet'
+import { PlanList } from '@/components/plan/PlanList'
+import { TripForm } from '@/components/trips/TripForm'
+
+export function TripDetailPage() {
+  const { tripId } = useParams<{ tripId: string }>()
+  const { profile } = useProfile()
+  const today = useToday()
+  const navigate = useNavigate()
+  const { openCreate } = useActivityViews()
+  const { toast } = useToast()
+
+  const trip = useLiveQuery(async () => {
+    if (!tripId) return null
+    return (await db.trips.get(tripId)) ?? null
+  }, [tripId])
+
+  const activities = useLiveQuery(
+    () =>
+      tripId
+        ? db.activities.where('tripId').equals(tripId).toArray()
+        : Promise.resolve([] as Activity[]),
+    [tripId],
+    [],
+  )
+
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+
+  const dayGroups = useMemo(() => {
+    if (!trip) return []
+    const byDate = new Map<string, Activity[]>()
+    for (const activity of activities) {
+      const list = byDate.get(activity.date) ?? []
+      list.push(activity)
+      byDate.set(activity.date, list)
+    }
+
+    const dates = new Set<string>([
+      ...eachDayKey(trip.startDate, trip.endDate),
+      ...activities.map((activity) => activity.date),
+    ])
+
+    return [...dates]
+      .sort()
+      .map((date) => ({ date, activities: sortActivities(byDate.get(date) ?? []) }))
+  }, [trip, activities])
+
+  const tripsById = useMemo(() => {
+    if (!trip) return new Map()
+    return new Map([[trip.id, trip]])
+  }, [trip])
+
+  if (!profile) return null
+
+  if (trip === undefined) {
+    return (
+      <Page>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-7 w-7 animate-spin text-coral" />
+        </div>
+      </Page>
+    )
+  }
+
+  if (trip === null || trip.profileId !== profile.id) {
+    return (
+      <Page>
+        <PageHeader
+          title="Trip not found"
+          description="This trip might have been deleted, or it belongs to another profile on this device."
+          onBack={() => navigate('/trips')}
+          backLabel="All trips"
+        />
+        <EmptyState
+          icon={<CalendarDays className="h-6 w-6" />}
+          title="Nothing to see here."
+          description="Head back to your trips and pick another adventure."
+          action={
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/trips')}>
+              Back to trips
+            </button>
+          }
+        />
+      </Page>
+    )
+  }
+
+  const total = activities.length
+  const done = activities.filter((activity) => activity.completed).length
+  const progress = total === 0 ? 0 : Math.round((done / total) * 100)
+  const isPast = today > trip.endDate
+  const status = tripCountdownLabel(trip.startDate, trip.endDate, today)
+  const addDate = today >= trip.startDate && today <= trip.endDate ? today : trip.startDate
+
+  const sortDay = async (date: string) => {
+    try {
+      await sortDayByTime(profile.id, date)
+      toast('Sorted by start time.')
+    } catch {
+      toast('Could not sort that day.', 'error')
+    }
+  }
+
+  const removeTrip = async (deletePlans: boolean) => {
+    setDeleteBusy(true)
+    try {
+      await deleteTrip(trip.id, deletePlans)
+      toast(deletePlans ? 'Trip and plans deleted.' : 'Trip deleted. The plans are still on your calendar.', 'success')
+      navigate('/trips')
+    } catch {
+      toast('Could not delete that trip.', 'error')
+      setDeleteBusy(false)
+    }
+  }
+
+  return (
+    <Page>
+      <button
+        type="button"
+        onClick={() => navigate('/trips')}
+        className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-cream"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        All trips
+      </button>
+
+      <section
+        className="relative overflow-hidden rounded-[32px] border p-5 sm:p-6"
+        style={{
+          borderColor: hexAlpha(trip.color, 0.26),
+          background: `radial-gradient(130% 150% at 0% 0%, ${hexAlpha(trip.color, 0.36)}, transparent 58%), linear-gradient(160deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018))`,
+        }}
+      >
+        <div
+          className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full blur-3xl"
+          style={{ backgroundColor: hexAlpha(trip.color, 0.18) }}
+          aria-hidden
+        />
+
+        <div className="relative">
+          <div className="flex items-start justify-between gap-3">
+            <span
+              className="grid h-16 w-16 place-items-center rounded-[22px] border border-white/15 text-[34px] shadow-inner"
+              style={{ backgroundColor: hexAlpha(trip.color, 0.24) }}
+            >
+              {trip.emoji}
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="btn-icon h-10 w-10 border-white/15 bg-black/20"
+                aria-label="Edit trip"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                className="btn-icon h-10 w-10 border-white/15 bg-black/20 hover:text-punch"
+                aria-label="Delete trip"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <span
+            className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-black/25 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.15em] text-cream backdrop-blur"
+          >
+            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: isPast ? '#A79FB6' : trip.color }} />
+            {status}
+          </span>
+
+          <h1 className="mt-2 break-words text-balance font-display text-[2.5rem] font-extrabold leading-[0.95] tracking-[-0.05em] text-cream sm:text-5xl">
+            {trip.name}
+          </h1>
+
+          {trip.destination ? (
+            <p className="mt-2 flex items-center gap-1.5 text-sm font-bold text-cream/80">
+              <MapPin className="h-3.5 w-3.5" />
+              {trip.destination}
+            </p>
+          ) : null}
+
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-bold text-cream/70">
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {dateRangeLabel(trip.startDate, trip.endDate)}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <ListChecks className="h-3.5 w-3.5" />
+              {total === 0 ? 'No plans yet' : `${done} of ${pluralize(total, 'plan')} done`}
+            </span>
+          </div>
+
+          {total > 0 ? (
+            <div className="mt-4">
+              <div className="h-1.5 overflow-hidden rounded-full bg-black/25">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%`, backgroundColor: trip.color }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {trip.notes ? (
+            <p className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/15 p-3.5 text-[13px] font-medium leading-relaxed text-cream/75">
+              {trip.notes}
+            </p>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => openCreate({ date: addDate, tripId: trip.id })}
+            className="btn btn-primary mt-5 h-10 px-4 text-xs"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.8} />
+            Add a plan
+          </button>
+        </div>
+      </section>
+
+      <div className="mt-8 flex items-end justify-between">
+        <div>
+          <p className="eyebrow">The days</p>
+          <p className="mt-1 font-display text-2xl font-extrabold tracking-[-0.03em] text-cream">
+            Day by day
+          </p>
+        </div>
+        <p className="text-[10px] font-bold text-muted/50">{pluralize(dayGroups.length, 'day')}</p>
+      </div>
+
+      <div className="mt-4 space-y-5">
+        {dayGroups.map(({ date, activities: dayActivities }, index) => {
+          const dayDone = dayActivities.filter((activity) => activity.completed).length
+          return (
+            <section key={date}>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-baseline gap-2.5">
+                  <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted/60">
+                    Day {index + 1}
+                  </span>
+                  <h3 className="font-display text-lg font-extrabold tracking-[-0.02em] text-cream">
+                    {formatDay(date, 'EEE, MMM d')}
+                  </h3>
+                  {date === today ? (
+                    <span className="rounded-full bg-coral/15 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.08em] text-coral">
+                      Today
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  {dayActivities.length > 0 ? (
+                    <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[9px] font-extrabold text-muted">
+                      {dayDone}/{dayActivities.length}
+                    </span>
+                  ) : null}
+                  {dayActivities.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => void sortDay(date)}
+                      className="btn-icon-sm h-8 w-8"
+                      aria-label={`Sort ${formatDay(date, 'MMMM d')} by start time`}
+                      title="Sort by start time"
+                    >
+                      <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => openCreate({ date, tripId: trip.id })}
+                    className="btn-icon-sm h-8 w-8"
+                    aria-label={`Add a plan on ${formatDay(date, 'MMMM d')}`}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {dayActivities.length > 0 ? (
+                <PlanList
+                  profileId={profile.id}
+                  date={date}
+                  activities={dayActivities}
+                  tripsById={tripsById}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openCreate({ date, tripId: trip.id })}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-white/12 p-3.5 text-left transition hover:border-white/20 hover:bg-white/[0.03]"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-white/[0.03] text-muted">
+                    <Plus className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="flex-1 text-xs font-semibold text-muted">
+                    Nothing planned — add a stop or leave the day open.
+                  </span>
+                </button>
+              )}
+            </section>
+          )
+        })}
+      </div>
+
+      {editOpen ? (
+        <TripForm trip={trip} onClose={() => setEditOpen(false)} />
+      ) : null}
+
+      <Sheet
+        open={deleteOpen}
+        onOpenChange={(open) => !open && !deleteBusy && setDeleteOpen(false)}
+        title="Delete this trip?"
+        description="The days go away, but the plans inside can stay."
+        footer={
+          <div className="grid gap-2">
+            <button
+              type="button"
+              onClick={() => void removeTrip(true)}
+              disabled={deleteBusy}
+              className="btn bg-punch text-ink hover:brightness-110"
+            >
+              {deleteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {total > 0 ? `Delete trip and all ${pluralize(total, 'plan')}` : 'Delete trip'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void removeTrip(false)}
+              disabled={deleteBusy}
+              className="btn btn-secondary"
+            >
+              Delete trip, keep the plans
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleteBusy}
+              className="btn btn-ghost h-9"
+            >
+              Cancel
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm font-medium leading-relaxed text-muted">
+          Keeping the plans will leave them on your calendar as loose plans, without the trip attached.
+          Deleting them removes their photos and tickets too.
+        </p>
+      </Sheet>
+    </Page>
+  )
+}

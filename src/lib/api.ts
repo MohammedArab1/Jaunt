@@ -1,0 +1,143 @@
+import type { AuthUser, SyncRequest, SyncResponse } from '@/types'
+
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+export class ApiUnavailableError extends Error {
+  constructor(message = 'Could not reach the Jaunt server.') {
+    super(message)
+    this.name = 'ApiUnavailableError'
+  }
+}
+
+interface RequestOptions {
+  method?: string
+  body?: unknown
+  timeoutMs?: number
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { method = 'GET', body, timeoutMs } = options
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  let payload: BodyInit | undefined
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+    payload = JSON.stringify(body)
+  }
+
+  let response: Response
+  try {
+    response = await fetch(path, {
+      method,
+      headers,
+      body: payload,
+      credentials: 'same-origin',
+      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
+    })
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new ApiUnavailableError('The server took too long to respond.')
+    }
+    throw new ApiUnavailableError()
+  }
+
+  if (!response.ok) {
+    let message = `Request failed (${response.status}).`
+    try {
+      const data = (await response.json()) as { error?: string }
+      if (data.error) message = data.error
+    } catch {
+      // Keep the fallback message.
+    }
+    throw new ApiError(message, response.status)
+  }
+
+  try {
+    return (await response.json()) as T
+  } catch {
+    throw new ApiUnavailableError('The server returned an unexpected response.')
+  }
+}
+
+export const api = {
+  auth: {
+    me: (timeoutMs = 4500) => request<{ user: AuthUser | null }>('/api/auth/me', { timeoutMs }),
+    login: (email: string, password: string) =>
+      request<{ user: AuthUser }>('/api/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      }),
+    register: (email: string, password: string) =>
+      request<{ user: AuthUser }>('/api/auth/register', {
+        method: 'POST',
+        body: { email, password },
+      }),
+    logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+    updateProfile: (displayName: string, color: string) =>
+      request<{ user: AuthUser }>('/api/auth/profile', {
+        method: 'PATCH',
+        body: { displayName, color },
+      }),
+  },
+
+  sync: (payload: SyncRequest) =>
+    request<SyncResponse>('/api/sync', {
+      method: 'POST',
+      body: payload,
+      timeoutMs: 60_000,
+    }),
+
+  async uploadAttachment(id: string, blob: Blob, mimeType: string): Promise<void> {
+    let response: Response
+    try {
+      response = await fetch(`/api/attachments/${encodeURIComponent(id)}/file`, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType || 'application/octet-stream' },
+        body: blob,
+        credentials: 'same-origin',
+      })
+    } catch {
+      throw new ApiUnavailableError()
+    }
+
+    if (!response.ok) {
+      let message = `Could not upload that file (${response.status}).`
+      try {
+        const data = (await response.json()) as { error?: string }
+        if (data.error) message = data.error
+      } catch {
+        // Keep fallback.
+      }
+      throw new ApiError(message, response.status)
+    }
+  },
+
+  async downloadAttachment(id: string): Promise<Blob> {
+    let response: Response
+    try {
+      response = await fetch(`/api/attachments/${encodeURIComponent(id)}/file`, {
+        credentials: 'same-origin',
+      })
+    } catch {
+      throw new ApiUnavailableError()
+    }
+
+    if (!response.ok) {
+      throw new ApiError('Could not download that file.', response.status)
+    }
+
+    return response.blob()
+  },
+}
+
+export function isNetworkError(error: unknown): boolean {
+  return error instanceof ApiUnavailableError || (typeof navigator !== 'undefined' && !navigator.onLine)
+}

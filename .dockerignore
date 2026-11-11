@@ -1,0 +1,14 @@
+**/node_modules
+dist
+server
+.tmp
+.git
+.gitignore
+.env
+.env.*
+test-results
+playwright-report
+tests
+*.log
+.DS_Store
+README.md

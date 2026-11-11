@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: jaunt
+      POSTGRES_USER: jaunt
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create a .env from .env.example and set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${DB_PORT:-55432}:5432"
+    volumes:
+      - jaunt_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jaunt -d jaunt"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: ./server
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: jaunt
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Create a .env from .env.example and set POSTGRES_PASSWORD}
+      PGDATABASE: jaunt
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      SESSION_DAYS: ${SESSION_DAYS:-90}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build: .
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  jaunt_db:

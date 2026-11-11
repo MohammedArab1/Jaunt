@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Jaunt">
+  <defs>
+    <linearGradient id="bg" x1="52" y1="32" x2="470" y2="492" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF8A3D" />
+      <stop offset="0.46" stop-color="#FF4D6D" />
+      <stop offset="1" stop-color="#7C5CFF" />
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22" />
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)" />
+  <circle cx="416" cy="76" r="170" fill="#FFFFFF" opacity="0.07" />
+  <circle cx="58" cy="476" r="140" fill="#160B25" opacity="0.12" />
+  <rect width="512" height="512" fill="url(#sheen)" />
+  <path
+    d="M118 386C200 386 196 306 270 306C344 306 326 218 392 178"
+    fill="none"
+    stroke="#FFF7E9"
+    stroke-width="34"
+    stroke-linecap="round"
+    stroke-dasharray="1 64"
+  />
+  <circle cx="118" cy="386" r="22" fill="#FFF7E9" />
+  <circle cx="270" cy="306" r="16" fill="#FFF7E9" />
+  <path
+    d="M398 116L415.5 161.5L461 179L415.5 196.5L398 242L380.5 196.5L335 179L380.5 161.5L398 116Z"
+    fill="#FFF7E9"
+  />
+</svg>

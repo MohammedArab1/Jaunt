@@ -1,0 +1,96 @@
+export const schemaSql = `
+CREATE SEQUENCE IF NOT EXISTS sync_revision_seq;
+
+CREATE TABLE IF NOT EXISTS users (
+  id uuid PRIMARY KEY,
+  email text NOT NULL UNIQUE,
+  password_hash text NOT NULL,
+  display_name text NOT NULL,
+  color text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash text NOT NULL UNIQUE,
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS trips (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id text NOT NULL,
+  name text NOT NULL,
+  destination text,
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  color text NOT NULL,
+  emoji text NOT NULL,
+  notes text,
+  created_at bigint NOT NULL,
+  updated_at bigint NOT NULL,
+  revision bigint NOT NULL DEFAULT nextval('sync_revision_seq'),
+  PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS trips_user_revision_idx ON trips(user_id, revision);
+
+CREATE TABLE IF NOT EXISTS activities (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id text NOT NULL,
+  trip_id text,
+  name text NOT NULL,
+  date date NOT NULL,
+  start_time text,
+  end_time text,
+  location text,
+  type text NOT NULL,
+  notes text,
+  confirmation text,
+  url text,
+  completed boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at bigint NOT NULL,
+  updated_at bigint NOT NULL,
+  revision bigint NOT NULL DEFAULT nextval('sync_revision_seq'),
+  PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS activities_user_revision_idx ON activities(user_id, revision);
+CREATE INDEX IF NOT EXISTS activities_user_trip_idx ON activities(user_id, trip_id);
+CREATE INDEX IF NOT EXISTS activities_user_date_idx ON activities(user_id, date);
+
+CREATE TABLE IF NOT EXISTS attachments (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id text NOT NULL,
+  activity_id text NOT NULL,
+  name text NOT NULL,
+  mime_type text NOT NULL,
+  size bigint NOT NULL,
+  created_at bigint NOT NULL,
+  updated_at bigint NOT NULL,
+  revision bigint NOT NULL DEFAULT nextval('sync_revision_seq'),
+  PRIMARY KEY (user_id, id),
+  FOREIGN KEY (user_id, activity_id) REFERENCES activities(user_id, id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS attachments_user_revision_idx ON attachments(user_id, revision);
+
+CREATE TABLE IF NOT EXISTS attachment_files (
+  user_id uuid NOT NULL,
+  attachment_id text NOT NULL,
+  data bytea NOT NULL,
+  PRIMARY KEY (user_id, attachment_id),
+  FOREIGN KEY (user_id, attachment_id) REFERENCES attachments(user_id, id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS tombstones (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entity_type text NOT NULL CHECK (entity_type IN ('trip', 'activity', 'attachment')),
+  entity_id text NOT NULL,
+  deleted_at bigint NOT NULL,
+  revision bigint NOT NULL,
+  PRIMARY KEY (user_id, entity_type, entity_id)
+);
+CREATE INDEX IF NOT EXISTS tombstones_user_revision_idx ON tombstones(user_id, revision);
+`

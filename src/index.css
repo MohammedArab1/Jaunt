@@ -1,0 +1,277 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --color-ink: #0b0a10;
+  --color-ink-2: #0f0d15;
+  --color-surface: #17151f;
+  --color-surface-2: #201c2b;
+  --color-cream: #faf6ee;
+  --color-muted: #a79fb6;
+  --color-coral: #ff6b4a;
+  --color-sun: #ffd166;
+  --color-mint: #4ade97;
+  --color-sky: #5ec8ff;
+  --color-violet: #a98bff;
+  --color-punch: #ff5c8a;
+  --color-lime: #cbef62;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    min-height: 100%;
+    background: var(--color-ink);
+  }
+
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    background: var(--color-ink);
+    color: var(--color-cream);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  ::selection {
+    background: rgba(255, 107, 74, 0.35);
+    color: #fff;
+  }
+
+  :where(button, a, input, textarea, select):focus-visible {
+    outline: 2px solid rgba(255, 107, 74, 0.9);
+    outline-offset: 2px;
+  }
+
+  input[type="date"],
+  input[type="time"] {
+    color-scheme: dark;
+    min-height: 3rem;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    filter: invert(0.9);
+    opacity: 0.55;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value {
+    text-align: left;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    background-clip: padding-box;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-11 shrink-0 select-none items-center justify-center gap-2 rounded-full px-5 text-sm font-extrabold transition-all duration-200 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-coral text-ink shadow-[0_12px_34px_-12px_rgba(255,107,74,0.9)] hover:bg-[#ff7d61];
+  }
+
+  .btn-secondary {
+    @apply border border-white/10 bg-white/[0.06] text-cream hover:border-white/20 hover:bg-white/[0.09];
+  }
+
+  .btn-ghost {
+    @apply text-muted hover:bg-white/[0.06] hover:text-cream;
+  }
+
+  .btn-icon {
+    @apply grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-cream transition-all duration-200 hover:bg-white/[0.1] active:scale-95;
+  }
+
+  .btn-icon-sm {
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted transition-all duration-200 hover:bg-white/[0.08] hover:text-cream active:scale-95;
+  }
+
+  .field {
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-[15px] font-semibold text-cream outline-none transition placeholder:font-medium placeholder:text-muted/45 focus:border-coral/50 focus:bg-white/[0.06];
+  }
+
+  .field-label {
+    @apply mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted;
+  }
+
+  .surface {
+    @apply rounded-[28px] border border-white/[0.08] bg-white/[0.045];
+  }
+
+  .eyebrow {
+    @apply text-[10px] font-extrabold uppercase tracking-[0.22em] text-muted;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-extrabold;
+  }
+
+  .hairline {
+    @apply border-t border-white/[0.07];
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.app-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 42% at 8% -6%, rgba(255, 107, 74, 0.2), transparent 68%),
+    radial-gradient(50% 38% at 100% 0%, rgba(124, 92, 255, 0.17), transparent 72%),
+    radial-gradient(42% 34% at 50% 112%, rgba(74, 222, 151, 0.08), transparent 70%),
+    #0b0a10;
+}
+
+.app-ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.page-enter {
+  animation: page-in 0.38s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.sheet-panel {
+  animation: sheet-rise 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (min-width: 640px) {
+  .sheet-panel {
+    animation: fade-in 0.2s ease-out both;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.22s ease-out both;
+}
+
+.animate-pop {
+  animation: pop 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-float {
+  animation: float 7s ease-in-out infinite;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
