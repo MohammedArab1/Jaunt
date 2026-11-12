@@ -9,3 +9,6 @@ blob-report/
 .env
 .env.*
 !.env.example
+ansible/vars/production.yml
+ansible/*.retry
+backups/

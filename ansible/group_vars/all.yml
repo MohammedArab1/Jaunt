@@ -1,0 +1,59 @@
+---
+# Where the app is checked out on the server.
+jaunt_app_dir: /root/Jaunt
+
+# Keep the Compose project name stable across deploys. It matches the
+# deployment directory and the existing container names on the host.
+jaunt_compose_project_name: jaunt
+
+# Web port. The container still listens on port 80 internally. Caddy is the
+# public entry point, so the host port binds to loopback only.
+jaunt_web_port: 8080
+jaunt_web_bind: 127.0.0.1
+
+# Local-only PostgreSQL port for debugging. The container is not exposed
+# on the public interface.
+jaunt_db_port: 55432
+
+# Login session lifetime.
+jaunt_session_days: 180
+
+# Public HTTPS hostname. nip.io resolves this subdomain to the server without
+# needing to own a domain. Replace it with a real domain whenever you have one.
+# Leave empty for an HTTP-only deployment on the raw IP.
+jaunt_domain: "jaunt.5.78.120.71.nip.io"
+jaunt_cookie_secure: "{{ (jaunt_domain | length > 0) | lower }}"
+
+# Caddy already owns ports 80/443 on this host and fronts the other apps.
+# The playbook only adds a marked site block and reloads Caddy; it never
+# rewrites the imported sites.
+jaunt_manage_caddy: true
+jaunt_caddy_dir: /root/caddy
+jaunt_caddy_config: "{{ jaunt_caddy_dir }}/Caddyfile"
+jaunt_caddy_https_health_url: "https://{{ jaunt_domain }}/api/health"
+
+# Pre-deploy database dumps.
+jaunt_backup_dir: "{{ jaunt_app_dir }}/backups"
+jaunt_backup_retention_days: 14
+
+# Docker housekeeping. This host runs several other apps, so only remove
+# dangling images and build cache older than this window. Never run a global
+# volume prune here.
+jaunt_prune_images: true
+jaunt_prune_builder: true
+# Builder cache older than this is removed after each deploy. Set to 0s to
+# wipe all build cache every time; 24h keeps deploys fast without unbounded
+# growth.
+jaunt_builder_cache_until: 24h
+jaunt_keep_previous_images: true
+
+# This is a 2 GB host. A little swap keeps image builds from OOM-killing the
+# other services that share it.
+jaunt_manage_swap: true
+jaunt_swap_file: /swapfile
+jaunt_swap_size_mb: 2048
+
+# Post-deploy verification.
+jaunt_health_url: "http://127.0.0.1:{{ jaunt_web_port }}/api/health"
+jaunt_health_retries: 40
+jaunt_health_delay: 3

@@ -6,6 +6,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Bump this from Ansible to guarantee a fresh build of the app layers while
+# still reusing dependency and base-image layers.
+ARG CACHEBUST=0
+RUN echo "${CACHEBUST}" > /app/.cachebust
+
 COPY . .
 RUN npm run build
 

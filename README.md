@@ -71,6 +71,7 @@ Edit `.env`:
 | --- | --- |
 | `POSTGRES_PASSWORD` | **Required.** Long random password for PostgreSQL. |
 | `WEB_PORT` | Public port for the web app (default `8080`). |
+| `WEB_BIND` | Interface for the web port (default `0.0.0.0`; use `127.0.0.1` behind a proxy). |
 | `DB_PORT` | Local-only host port for PostgreSQL development access (default `55432`). |
 | `SESSION_DAYS` | How long login sessions last (default `90`). |
 | `COOKIE_SECURE` | Keep `true` on HTTPS. Set `false` only for plain-HTTP localhost testing. |
@@ -100,6 +101,87 @@ caddy run --config Caddyfile
 Caddy gets a certificate automatically and proxies to the web container. A Cloudflare Tunnel or Tailscale Serve also works for HTTPS.
 
 Keep `COOKIE_SECURE=true` in production so session cookies are only sent over HTTPS. The app and API are intentionally same-origin; keep both under the same hostname.
+
+### Deploying with Ansible
+
+The `ansible/` directory deploys the stack to the host in
+`ansible/inventory.ini` (`root@5.78.120.71` by default).
+
+On the machine you deploy from:
+
+```bash
+ansible-galaxy collection install -r ansible/requirements.yml
+ssh root@5.78.120.71 true
+```
+
+Create the optional secrets file. On this host, leaving the password empty
+adopts the password already present in `/root/Jaunt/.env`:
+
+```bash
+cp ansible/vars/production.example.yml ansible/vars/production.yml
+# edit it; the file is gitignored and can be ansible-vault encrypted
+```
+
+Deploy:
+
+```bash
+./ansible/deploy.sh
+# or
+npm run deploy
+```
+
+Each run:
+
+1. Ensures a 2 GB swap file exists (this is a small shared host).
+2. Syncs the working tree, excluding `.git`, dependencies, build output,
+   tests, the local `.env`, and backups.
+3. Renders `.env` from `ansible/group_vars/all.yml` and the preserved
+   database password.
+4. Dumps PostgreSQL to `backups/` (14-day retention) and tests the archive.
+5. Builds `api` then `web` with `--pull` and a cache-busting build argument.
+6. Runs `docker compose down --remove-orphans`, then
+   `docker compose up -d --remove-orphans --force-recreate --wait`.
+7. Checks `/api/health`, adds/reloads the marked Caddy site block, and
+   verifies the public HTTPS URL.
+8. Removes dangling images and build cache older than 24 hours.
+9. If the new containers fail to become healthy, retags the previous images
+   and brings them back automatically.
+
+The public URL is `https://jaunt.5.78.120.71.nip.io`. Caddy already owns
+ports 80/443 on the host and handles the certificate. The web container is
+bound to `127.0.0.1:8080`, so Caddy is the only public entry point. Replace
+`jaunt_domain` in `ansible/group_vars/all.yml` with a real domain when you
+have one. Set `jaunt_manage_caddy: false` to skip the proxy changes and
+publish only on `WEB_PORT` (which the provider firewall currently blocks).
+
+> **Host note:** Caddy on this server is currently a manually started
+> process, not the failed `caddy.service`. The deploy reloads it but does not
+> change how it starts. Fix that systemd unit separately so HTTPS survives a
+> reboot.
+
+**Data safety:** the `jaunt_db` volume is never removed by this playbook.
+`docker compose down -v` is never used. To restore a dump:
+
+```bash
+ssh root@5.78.120.71
+cd /root/Jaunt
+gunzip -c backups/jaunt-YYYYMMDD-HHMMSS.sql.gz | docker compose exec -T db psql -U jaunt -d jaunt
+```
+
+To roll back manually:
+
+```bash
+ssh root@5.78.120.71
+cd /root/Jaunt
+docker tag jaunt-web:previous jaunt-web:latest
+docker tag jaunt-api:previous jaunt-api:latest
+docker compose up -d --force-recreate --remove-orphans
+```
+
+`COOKIE_SECURE` becomes `true` automatically when `jaunt_domain` is set. If
+you disable Caddy and use plain HTTP, set `jaunt_cookie_secure: "false"` in
+`ansible/group_vars/all.yml`; installation and service workers still require
+HTTPS.
 
 ---
 

@@ -17,7 +17,10 @@ services:
     restart: unless-stopped
 
   api:
-    build: ./server
+    build:
+      context: ./server
+      args:
+        CACHEBUST: ${CACHEBUST:-0}
     environment:
       NODE_ENV: production
       PORT: 3100
@@ -34,9 +37,12 @@ services:
     restart: unless-stopped
 
   web:
-    build: .
+    build:
+      context: .
+      args:
+        CACHEBUST: ${CACHEBUST:-0}
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:80"
     depends_on:
       api:
         condition: service_healthy

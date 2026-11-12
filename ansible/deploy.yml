@@ -1,0 +1,651 @@
+---
+- name: Deploy Jaunt
+  hosts: jaunt
+  gather_facts: true
+  become: false
+
+  vars:
+    jaunt_compose_args:
+      - docker
+      - compose
+      - --project-directory
+      - "{{ jaunt_app_dir }}"
+      - -p
+      - "{{ jaunt_compose_project_name }}"
+      - -f
+      - "{{ jaunt_app_dir }}/docker-compose.yml"
+    jaunt_compose_shell: >-
+      docker compose --project-directory {{ jaunt_app_dir }}
+      -p {{ jaunt_compose_project_name }}
+      -f {{ jaunt_app_dir }}/docker-compose.yml
+    jaunt_cachebust: "{{ ansible_facts['date_time']['epoch'] }}-{{ 999999 | random }}"
+
+  tasks:
+    - name: Load production overrides when present
+      tags: always
+      block:
+        - name: Check for production vars
+          ansible.builtin.stat:
+            path: "{{ playbook_dir }}/vars/production.yml"
+          register: jaunt_production_vars
+
+        - name: Load production vars
+          ansible.builtin.include_vars:
+            file: "{{ playbook_dir }}/vars/production.yml"
+          when: jaunt_production_vars.stat.exists
+
+    - name: Read the existing deployment environment
+      tags: always
+      block:
+        - name: Check for an existing .env
+          ansible.builtin.stat:
+            path: "{{ jaunt_app_dir }}/.env"
+          register: jaunt_env_stat
+
+        - name: Read the existing .env
+          ansible.builtin.slurp:
+            src: "{{ jaunt_app_dir }}/.env"
+          register: jaunt_env_slurp
+          when: jaunt_env_stat.stat.exists
+
+        - name: Extract the existing database password
+          ansible.builtin.set_fact:
+            jaunt_existing_postgres_password: >-
+              {{
+                (jaunt_env_slurp.content | b64decode)
+                | regex_search('(?m)^POSTGRES_PASSWORD=(.+)$', '\1')
+                | first
+                | default('', true)
+                | trim
+              }}
+          when: jaunt_env_stat.stat.exists
+
+    - name: Default the existing password to empty
+      ansible.builtin.set_fact:
+        jaunt_existing_postgres_password: "{{ jaunt_existing_postgres_password | default('', true) }}"
+      tags: always
+
+    - name: Choose the database password
+      ansible.builtin.set_fact:
+        jaunt_effective_postgres_password: >-
+          {{
+            (jaunt_postgres_password | default('', true) | trim)
+            if (jaunt_postgres_password | default('', true) | trim | length > 0)
+            else (jaunt_existing_postgres_password | default('', true))
+          }}
+      tags: always
+
+    - name: Require a database password
+      ansible.builtin.assert:
+        that:
+          - jaunt_effective_postgres_password | length > 0
+        fail_msg: |
+          No PostgreSQL password is configured.
+
+          Either create {{ jaunt_app_dir }}/.env with POSTGRES_PASSWORD=...,
+          or copy ansible/vars/production.example.yml to
+          ansible/vars/production.yml and set jaunt_postgres_password.
+      tags: always
+
+    - name: Refuse to silently change an existing database password
+      ansible.builtin.assert:
+        that:
+          - (jaunt_postgres_password | default('', true) | length) == 0
+            or (jaunt_existing_postgres_password | length) == 0
+            or jaunt_postgres_password == jaunt_existing_postgres_password
+        fail_msg: |
+          The existing database on {{ inventory_hostname }} uses a different
+          POSTGRES_PASSWORD than ansible/vars/production.yml.
+
+          Changing only .env would lock the app out of its existing data. To
+          keep the current password, remove jaunt_postgres_password from
+          production.yml. To rotate it deliberately, update the PostgreSQL
+          role first, then update production.yml and redeploy.
+      tags: always
+
+    # ---------------------------------------------------------------------
+    # Host prep
+    # ---------------------------------------------------------------------
+    - name: Check active swap
+      ansible.builtin.command:
+        cmd: swapon --show=NAME --noheadings
+      register: jaunt_active_swap
+      changed_when: false
+      when: jaunt_manage_swap
+      tags: system
+
+    - name: Check for the swap file
+      ansible.builtin.stat:
+        path: "{{ jaunt_swap_file }}"
+      register: jaunt_swap_stat
+      when: jaunt_manage_swap
+      tags: system
+
+    - name: Create the swap file
+      ansible.builtin.command:
+        cmd: fallocate -l {{ jaunt_swap_size_mb }}M {{ jaunt_swap_file }}
+      when:
+        - jaunt_manage_swap
+        - not (jaunt_swap_stat.get('stat', {}).get('exists', false))
+      tags: system
+
+    - name: Secure the swap file
+      ansible.builtin.file:
+        path: "{{ jaunt_swap_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+      when:
+        - jaunt_manage_swap
+        - not (jaunt_swap_stat.get('stat', {}).get('exists', false))
+      tags: system
+
+    - name: Format the swap file
+      ansible.builtin.command:
+        cmd: mkswap {{ jaunt_swap_file }}
+      when:
+        - jaunt_manage_swap
+        - jaunt_swap_file not in jaunt_active_swap.get('stdout', '')
+      tags: system
+
+    - name: Enable the swap file
+      ansible.builtin.command:
+        cmd: swapon {{ jaunt_swap_file }}
+      when:
+        - jaunt_manage_swap
+        - jaunt_swap_file not in jaunt_active_swap.get('stdout', '')
+      tags: system
+
+    - name: Persist the swap file in /etc/fstab
+      ansible.posix.mount:
+        path: "none"
+        src: "{{ jaunt_swap_file }}"
+        fstype: swap
+        opts: sw
+        state: present
+      when: jaunt_manage_swap
+      tags: system
+
+    # ---------------------------------------------------------------------
+    # Source and configuration
+    # ---------------------------------------------------------------------
+    - name: Ensure the deployment directory exists
+      ansible.builtin.file:
+        path: "{{ jaunt_app_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      tags: sync
+
+    - name: Sync application source
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../"
+        dest: "{{ jaunt_app_dir }}/"
+        delete: true
+        recursive: true
+        use_ssh_args: true
+        rsync_opts:
+          - "--exclude=.git/"
+          - "--exclude=node_modules/"
+          - "--exclude=server/node_modules/"
+          - "--exclude=dist/"
+          - "--exclude=server/dist/"
+          - "--exclude=.env"
+          - "--exclude=.tmp/"
+          - "--exclude=test-results/"
+          - "--exclude=playwright-report/"
+          - "--exclude=blob-report/"
+          - "--exclude=tests/"
+          - "--exclude=/ansible/"
+          - "--exclude=/backups/"
+          - "--exclude=*.log"
+          - "--exclude=.DS_Store"
+      tags: sync
+
+    - name: Write the deployment environment
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/env.j2"
+        dest: "{{ jaunt_app_dir }}/.env"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      tags: config
+
+    # ---------------------------------------------------------------------
+    # Preflight
+    # ---------------------------------------------------------------------
+    - name: Verify Docker Compose is available
+      ansible.builtin.command:
+        cmd: docker compose version
+      changed_when: false
+      tags: preflight
+
+    - name: Verify the Docker daemon is reachable
+      ansible.builtin.command:
+        cmd: docker ps -q
+      changed_when: false
+      tags: preflight
+
+    - name: Validate the Compose file
+      ansible.builtin.command:
+        argv: "{{ jaunt_compose_args + ['config', '--quiet'] }}"
+        chdir: "{{ jaunt_app_dir }}"
+      changed_when: false
+      tags: preflight
+
+    - name: Check free disk space
+      ansible.builtin.command:
+        cmd: df --output=avail -k /
+      register: jaunt_disk
+      changed_when: false
+      tags: preflight
+
+    - name: Reclaim build cache when disk is tight
+      ansible.builtin.command:
+        cmd: docker builder prune -af
+      when: (jaunt_disk.stdout_lines[1] | trim | int) < 4194304
+      changed_when: true
+      tags: preflight
+
+    # ---------------------------------------------------------------------
+    # Database safety
+    # ---------------------------------------------------------------------
+    - name: Find the Jaunt database volume
+      ansible.builtin.command:
+        argv:
+          - docker
+          - volume
+          - ls
+          - -q
+          - --filter
+          - "label=com.docker.compose.project={{ jaunt_compose_project_name }}"
+          - --filter
+          - "label=com.docker.compose.volume=jaunt_db"
+      register: jaunt_db_volume
+      changed_when: false
+      tags: backup
+
+    - name: Look for a Jaunt database volume from another Compose project
+      ansible.builtin.shell:
+        cmd: docker volume ls -q | grep -E '(^|_)jaunt_db$' || true
+      register: jaunt_any_db_volume
+      changed_when: false
+      tags: backup
+
+    - name: Refuse to create a fresh database beside an existing one
+      ansible.builtin.assert:
+        that:
+          - (jaunt_db_volume.stdout | length) > 0 or (jaunt_any_db_volume.stdout | length) == 0
+        fail_msg: |
+          Found a Jaunt database volume that does not belong to the
+          "{{ jaunt_compose_project_name }}" Compose project:
+
+          {{ jaunt_any_db_volume.stdout }}
+
+          Refusing to deploy, because that would create a new empty database
+          instead of using the existing data. Set jaunt_compose_project_name
+          to the project that owns the volume, or migrate it deliberately.
+      tags: backup
+
+    - name: Back up the database before replacing the containers
+      when: (jaunt_db_volume.stdout | length) > 0
+      tags: backup
+      block:
+        - name: Make sure the database is running
+          ansible.builtin.command:
+            argv: "{{ jaunt_compose_args + ['up', '-d', '--wait', '--wait-timeout', '120', 'db'] }}"
+            chdir: "{{ jaunt_app_dir }}"
+          changed_when: true
+
+        - name: Create the backup directory
+          ansible.builtin.file:
+            path: "{{ jaunt_backup_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0700"
+
+        - name: Timestamp the backup
+          ansible.builtin.set_fact:
+            jaunt_backup_stamp: "{{ now(fmt='%Y%m%d-%H%M%S') }}"
+
+        - name: Name the backup file
+          ansible.builtin.set_fact:
+            jaunt_backup_file: "{{ jaunt_backup_dir }}/jaunt-{{ jaunt_backup_stamp }}.sql.gz"
+
+        - name: Dump the database
+          ansible.builtin.shell:
+            cmd: |
+              set -o pipefail
+              {{ jaunt_compose_shell }} exec -T db \
+                pg_dump -U jaunt -d jaunt --no-owner --clean --if-exists \
+                | gzip -6 > "{{ jaunt_backup_file }}"
+            chdir: "{{ jaunt_app_dir }}"
+            executable: /bin/bash
+
+        - name: Check the dump
+          ansible.builtin.stat:
+            path: "{{ jaunt_backup_file }}"
+          register: jaunt_backup_stat
+
+        - name: Verify the dump is readable
+          ansible.builtin.assert:
+            that:
+              - jaunt_backup_stat.stat.exists
+              - jaunt_backup_stat.stat.size > 0
+            fail_msg: "The PostgreSQL dump is missing or empty; refusing to continue."
+          when: jaunt_backup_stat.stat.exists
+
+        - name: Test the gzip stream
+          ansible.builtin.command:
+            cmd: gzip -t {{ jaunt_backup_file }}
+          changed_when: false
+
+        - name: Back up the deployment environment
+          ansible.builtin.copy:
+            src: "{{ jaunt_app_dir }}/.env"
+            dest: "{{ jaunt_backup_dir }}/env-{{ jaunt_backup_stamp }}.bak"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0600"
+
+        - name: Remove expired backups
+          ansible.builtin.shell:
+            cmd: >-
+              find "{{ jaunt_backup_dir }}" -maxdepth 1 -type f
+              \( -name 'jaunt-*.sql.gz' -o -name 'env-*.bak' \)
+              -mtime +{{ jaunt_backup_retention_days }} -delete
+            executable: /bin/bash
+          changed_when: false
+
+    # ---------------------------------------------------------------------
+    # Build and restart
+    # ---------------------------------------------------------------------
+    - name: Record the current images for rollback
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          for service in web api; do
+            image_id="$({{ jaunt_compose_shell }} images -q "$service" 2>/dev/null | head -n 1 || true)"
+            if [ -n "$image_id" ]; then
+              docker tag "$image_id" "{{ jaunt_compose_project_name }}-${service}:previous"
+              echo "tagged {{ jaunt_compose_project_name }}-${service}:previous"
+            fi
+          done
+        chdir: "{{ jaunt_app_dir }}"
+        executable: /bin/bash
+      register: jaunt_previous_images
+      changed_when: "'tagged' in jaunt_previous_images.stdout"
+      tags: deploy
+
+    - name: Build, restart, and verify Jaunt
+      tags: deploy
+      block:
+        - name: Build the API image
+          ansible.builtin.shell:
+            cmd: |
+              set -o pipefail
+              export CACHEBUST="{{ jaunt_cachebust }}"
+              {{ jaunt_compose_shell }} build --pull api
+            chdir: "{{ jaunt_app_dir }}"
+            executable: /bin/bash
+          changed_when: true
+
+        - name: Build the web image
+          ansible.builtin.shell:
+            cmd: |
+              set -o pipefail
+              export CACHEBUST="{{ jaunt_cachebust }}"
+              {{ jaunt_compose_shell }} build --pull web
+            chdir: "{{ jaunt_app_dir }}"
+            executable: /bin/bash
+          changed_when: true
+
+        - name: Mark the containers as stopped
+          ansible.builtin.set_fact:
+            jaunt_containers_stopped: true
+
+        - name: Stop and remove the old containers
+          ansible.builtin.command:
+            argv: "{{ jaunt_compose_args + ['down', '--remove-orphans'] }}"
+            chdir: "{{ jaunt_app_dir }}"
+          register: jaunt_down
+          changed_when: true
+
+        - name: Start the new containers
+          ansible.builtin.command:
+            argv: "{{ jaunt_compose_args + ['up', '-d', '--remove-orphans', '--force-recreate', '--wait', '--wait-timeout', '240'] }}"
+            chdir: "{{ jaunt_app_dir }}"
+          register: jaunt_up
+          changed_when: true
+
+        - name: Wait for the application health endpoint
+          ansible.builtin.uri:
+            url: "{{ jaunt_health_url }}"
+            status_code: 200
+            return_content: true
+            timeout: 10
+          register: jaunt_health
+          until: jaunt_health.status == 200 and (jaunt_health.json.ok | default(false))
+          retries: "{{ jaunt_health_retries }}"
+          delay: "{{ jaunt_health_delay }}"
+      rescue:
+        - name: Show container status
+          ansible.builtin.command:
+            argv: "{{ jaunt_compose_args + ['ps'] }}"
+            chdir: "{{ jaunt_app_dir }}"
+          register: jaunt_failure_ps
+          changed_when: false
+          failed_when: false
+
+        - name: Show recent logs
+          ansible.builtin.command:
+            argv: "{{ jaunt_compose_args + ['logs', '--tail=120'] }}"
+            chdir: "{{ jaunt_app_dir }}"
+          register: jaunt_failure_logs
+          changed_when: false
+          failed_when: false
+
+        - name: Print failure details
+          ansible.builtin.debug:
+            msg:
+              - "{{ jaunt_failure_ps.stdout }}"
+              - "{{ jaunt_failure_logs.stdout }}"
+              - "{{ jaunt_failure_logs.stderr }}"
+
+        - name: Roll back to the previous images
+          when:
+            - jaunt_containers_stopped | default(false)
+            - jaunt_previous_images is defined
+            - "'tagged' in (jaunt_previous_images.stdout | default(''))"
+          block:
+            - name: Retag the previous images
+              ansible.builtin.shell:
+                cmd: |
+                  set -eu
+                  docker tag "{{ jaunt_compose_project_name }}-web:previous" "{{ jaunt_compose_project_name }}-web:latest"
+                  docker tag "{{ jaunt_compose_project_name }}-api:previous" "{{ jaunt_compose_project_name }}-api:latest"
+                chdir: "{{ jaunt_app_dir }}"
+                executable: /bin/bash
+              changed_when: true
+
+            - name: Bring the previous version back up
+              ansible.builtin.command:
+                argv: "{{ jaunt_compose_args + ['up', '-d', '--remove-orphans', '--force-recreate', '--wait', '--wait-timeout', '240'] }}"
+                chdir: "{{ jaunt_app_dir }}"
+              changed_when: true
+
+            - name: Verify the rolled-back version
+              ansible.builtin.uri:
+                url: "{{ jaunt_health_url }}"
+                status_code: 200
+                return_content: true
+                timeout: 10
+              register: jaunt_rollback_health
+              until: jaunt_rollback_health.status == 200
+              retries: 20
+              delay: 3
+
+        - name: Fail the deployment
+          ansible.builtin.fail:
+            msg: "Jaunt deployment failed. Container status and recent logs are above."
+
+    # ---------------------------------------------------------------------
+    # HTTPS entry point
+    # ---------------------------------------------------------------------
+    - name: Publish Jaunt through Caddy over HTTPS
+      when:
+        - jaunt_manage_caddy
+        - jaunt_domain | length > 0
+      tags: caddy
+      block:
+        - name: Check the Caddy configuration
+          ansible.builtin.stat:
+            path: "{{ jaunt_caddy_config }}"
+          register: jaunt_caddy_stat
+
+        - name: Require the Caddy configuration
+          ansible.builtin.assert:
+            that:
+              - jaunt_caddy_stat.stat.exists
+            fail_msg: |
+              Caddy is enabled but {{ jaunt_caddy_config }} does not exist.
+              Set jaunt_manage_caddy=false to deploy only on port
+              {{ jaunt_web_port }}, or point jaunt_caddy_config at the
+              active Caddyfile.
+          when: jaunt_manage_caddy
+
+        - name: Back up the Caddy configuration
+          ansible.builtin.copy:
+            src: "{{ jaunt_caddy_config }}"
+            dest: "{{ jaunt_caddy_config }}.jaunt.bak"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: Install the Jaunt site block
+          ansible.builtin.blockinfile:
+            path: "{{ jaunt_caddy_config }}"
+            marker: "# {mark} ANSIBLE MANAGED JAUNT SITE"
+            insertafter: EOF
+            block: |
+              https://{{ jaunt_domain }} {
+                  encode zstd gzip
+                  reverse_proxy 127.0.0.1:{{ jaunt_web_port }}
+              }
+
+        - name: Validate the Caddy configuration
+          ansible.builtin.command:
+            argv:
+              - caddy
+              - validate
+              - --config
+              - "{{ jaunt_caddy_config }}"
+              - --adapter
+              - caddyfile
+            chdir: "{{ jaunt_caddy_dir }}"
+          changed_when: false
+
+        - name: Reload Caddy
+          ansible.builtin.command:
+            argv:
+              - caddy
+              - reload
+              - --config
+              - "{{ jaunt_caddy_config }}"
+              - --adapter
+              - caddyfile
+            chdir: "{{ jaunt_caddy_dir }}"
+          changed_when: true
+
+        - name: Wait for the public HTTPS endpoint
+          ansible.builtin.uri:
+            url: "{{ jaunt_caddy_https_health_url }}"
+            status_code: 200
+            return_content: true
+            timeout: 15
+          register: jaunt_caddy_health
+          until: jaunt_caddy_health.status == 200 and (jaunt_caddy_health.json.ok | default(false))
+          retries: 40
+          delay: 3
+      rescue:
+        - name: Check for the Caddy backup
+          ansible.builtin.stat:
+            path: "{{ jaunt_caddy_config }}.jaunt.bak"
+          register: jaunt_caddy_backup
+
+        - name: Restore the previous Caddy configuration
+          ansible.builtin.copy:
+            src: "{{ jaunt_caddy_config }}.jaunt.bak"
+            dest: "{{ jaunt_caddy_config }}"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0644"
+          when: jaunt_caddy_backup.stat.exists
+
+        - name: Reload Caddy with the previous configuration
+          ansible.builtin.command:
+            argv:
+              - caddy
+              - reload
+              - --config
+              - "{{ jaunt_caddy_config }}"
+              - --adapter
+              - caddyfile
+            chdir: "{{ jaunt_caddy_dir }}"
+          changed_when: true
+          failed_when: false
+          when: jaunt_caddy_backup.stat.exists
+
+        - name: Fail the deployment because Caddy did not serve the site
+          ansible.builtin.fail:
+            msg: >-
+              Caddy did not start serving https://{{ jaunt_domain }}.
+              The previous Caddy configuration was restored.
+
+    # ---------------------------------------------------------------------
+    # Cleanup and summary
+    # ---------------------------------------------------------------------
+    - name: Remove dangling images
+      ansible.builtin.command:
+        cmd: docker image prune -f
+      register: jaunt_image_prune
+      changed_when: false
+      when: jaunt_prune_images
+      tags: cleanup
+
+    - name: Trim old Docker build cache
+      ansible.builtin.command:
+        cmd: docker builder prune -f --filter until={{ jaunt_builder_cache_until }}
+      register: jaunt_builder_prune
+      changed_when: false
+      when: jaunt_prune_builder
+      tags: cleanup
+
+    - name: Remove rollback images when disabled
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - rm
+          - "{{ jaunt_compose_project_name }}-web:previous"
+          - "{{ jaunt_compose_project_name }}-api:previous"
+      changed_when: true
+      failed_when: false
+      when: not jaunt_keep_previous_images
+      tags: cleanup
+
+    - name: Show deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "Deployment target: {{ inventory_hostname }}."
+          - "Local URL: http://{{ jaunt_web_bind }}:{{ jaunt_web_port }}"
+          - "Public URL: {{ ('https://' ~ jaunt_domain) if (jaunt_domain | length > 0) else 'not configured (set jaunt_domain and add a Caddy site)' }}"
+          - "Database backup: {{ jaunt_backup_file | default('none (no database volume yet)') }}"
+          - "Rollback images: {{ jaunt_compose_project_name }}-web:previous, {{ jaunt_compose_project_name }}-api:previous"
+      tags: always

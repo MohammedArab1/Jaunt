@@ -1,0 +1,16 @@
+---
+# Copy this file to ansible/vars/production.yml (gitignored), or encrypt the
+# copy with `ansible-vault encrypt ansible/vars/production.yml`.
+#
+# Leave this empty to adopt the password that already exists in the server's
+# /root/Jaunt/.env. On a brand-new server, set a long random password here.
+#
+# If the server already has a database volume, the playbook refuses to change
+# the password automatically: the PostgreSQL role keeps its original password,
+# so changing only .env would lock the app out of its own data.
+jaunt_postgres_password: ""
+
+# Optional overrides:
+# jaunt_domain: jaunt.example.com
+# jaunt_session_days: 180
+# jaunt_web_port: 8080
