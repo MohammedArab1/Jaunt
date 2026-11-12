@@ -10,6 +10,7 @@ import { Onboarding } from '@/pages/Onboarding'
 import { AuthScreen } from '@/pages/AuthScreen'
 import { TodayPage } from '@/pages/TodayPage'
 import { CalendarPage } from '@/pages/CalendarPage'
+import { SearchPage } from '@/pages/SearchPage'
 import { TripsPage } from '@/pages/TripsPage'
 import { TripDetailPage } from '@/pages/TripDetailPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -22,6 +23,7 @@ function AppRoutes() {
         <Route element={<AppShell />}>
           <Route index element={<TodayPage />} />
           <Route path="calendar" element={<CalendarPage />} />
+          <Route path="search" element={<SearchPage />} />
           <Route path="trips" element={<TripsPage />} />
           <Route path="trips/:tripId" element={<TripDetailPage />} />
           <Route path="settings" element={<SettingsPage />} />

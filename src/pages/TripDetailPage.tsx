@@ -9,11 +9,12 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Search,
   Share2,
   Trash2,
   Users,
 } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { db } from '@/db'
 import type { Activity } from '@/types'
 import {
@@ -158,14 +159,19 @@ export function TripDetailPage() {
 
   return (
     <Page>
-      <button
-        type="button"
-        onClick={() => navigate('/trips')}
-        className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-fg"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        All trips
-      </button>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/trips')}
+          className="inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-fg"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          All trips
+        </button>
+        <Link to="/search" aria-label="Search everything" className="btn-icon-sm h-9 w-9">
+          <Search className="h-4 w-4" />
+        </Link>
+      </div>
 
       <section
         className="relative overflow-hidden rounded-[32px] border p-5 sm:p-6"

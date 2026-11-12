@@ -200,3 +200,48 @@ test('supports empty times, multi-day day-part plans, and light mode', async ({ 
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Today' }).click()
   await expect(page.getByRole('button', { name: 'View Away weekend' })).toBeVisible()
 })
+
+test('searches trips, plans, places, confirmations, and notes', async ({ page }) => {
+  await onboard(page, 'Searcher')
+
+  await page.getByLabel('Add a plan', { exact: true }).click()
+  await page.getByLabel('What is it?').fill('Tea ceremony')
+  await page.getByLabel('Where').fill('Gion')
+  await page.getByLabel('Confirmation number').fill('ABC123')
+  await page.getByLabel('Notes').fill('Window seat with a garden view')
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'View Tea ceremony' })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Trips' }).click()
+  await page.getByRole('button', { name: 'New trip' }).click()
+  await page.getByLabel('Trip name').fill('Kyoto escape')
+  await page.getByLabel('Destination').fill('Kyoto')
+  await page.getByLabel('Starts').fill(localDayKey(2))
+  await page.getByLabel('Ends').fill(localDayKey(4))
+  await page.getByRole('button', { name: 'Create trip' }).click()
+  await expect(page.getByRole('heading', { name: 'Kyoto escape' })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Search everything' }).click()
+  const searchbox = page.getByRole('searchbox')
+  await expect(searchbox).toBeVisible()
+
+  await searchbox.fill('Kyoto')
+  await expect(page.getByRole('link', { name: 'Open trip Kyoto escape' })).toBeVisible()
+
+  await searchbox.fill('Gion')
+  await expect(page.getByRole('button', { name: 'Open plan Tea ceremony' })).toBeVisible()
+  await page.getByRole('button', { name: 'Open plan Tea ceremony' }).click()
+  await expect(page.getByRole('heading', { name: 'Tea ceremony' })).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  await searchbox.fill('ABC123')
+  await expect(page.getByRole('button', { name: 'Open plan Tea ceremony' })).toBeVisible()
+  await expect(page.getByText('Confirmation ABC123')).toBeVisible()
+
+  await searchbox.fill('garden')
+  await expect(page.getByRole('button', { name: 'Open plan Tea ceremony' })).toBeVisible()
+  await expect(page.getByText('Window seat with a garden view')).toBeVisible()
+
+  await searchbox.fill('nothing-like-this')
+  await expect(page.getByText('Nothing matched.')).toBeVisible()
+})

@@ -26,6 +26,7 @@ Built to live on a phone home screen.
 - **Calendar view** — a month grid with color-coded activity dots; tap any day to see and edit its agenda.
 - **Tickets & photos** — attach up to 12 files per plan. Photos are compressed on-device; PDFs are kept as-is. Open or download them later.
 - **Public read-only links** — share a trip's itinerary with anyone, no account required. Tickets, confirmations, links, and notes stay private; revoke the link at any time.
+- **Global search** — find trips, plans, places, confirmation numbers, and notes from one page. It reads the offline cache, so it works without a connection and includes shared trips.
 - **Local profiles + import** — keep guest profiles for offline use, then copy a guest profile into an account without deleting the original.
 - **Backups** — export guest data as one JSON file including tickets. Account data lives in PostgreSQL and can be dumped with `pg_dump`.
 - **Installable PWA** — app icons, offline caching, update prompts, and a proper standalone display.
@@ -301,7 +302,7 @@ Choose **Continue offline** on the first screen (or from sign-in). Guest mode:
 - Can be backed up from **Settings → Download backup**.
 - Can be imported into an account from **Settings → Bring your offline plans along**.
 
-An account also works offline: after the first successful sync, account data and ticket files are cached in the browser. You can add, edit, complete, reorder, and delete plans offline. The app shows an offline banner and retries automatically. Changes queue until the next sync.
+An account also works offline: after the first successful sync, account data and ticket files are cached in the browser. You can add, edit, complete, reorder, and delete plans offline. The app shows an offline banner and retries automatically. Changes queue until the next sync. Global search also reads this local cache, so it keeps working offline.
 
 Signing out removes the account cache from that browser. Anything not yet synced would be lost, so the app warns you to sync first.
 
@@ -360,7 +361,7 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-Covers: offline onboarding, local profiles, plan creation, drag reorder, completion persistence, offline reload, trips, guest backups/restore, multi-day plans, day-part timing, empty time fields, light mode persistence, and the sign-in gate with “Continue offline.”
+Covers: offline onboarding, local profiles, plan creation, drag reorder, completion persistence, offline reload, trips, guest backups/restore, multi-day plans, day-part timing, empty time fields, light mode persistence, global search across trips/plans/places/confirmations/notes, and the sign-in gate with “Continue offline.”
 
 ### Account / full-stack suite
 
@@ -385,7 +386,7 @@ src/                    React app
   context/              auth, profiles, sync, theme, toasts, install prompt, activity sheets
   hooks/                today/now clocks
   lib/                  API client, sync engine, repos, backup, image prep, dates
-  pages/                Auth, Today, Calendar, Trips, Trip detail, Public trip, Settings, Onboarding
+  pages/                Auth, Today, Calendar, Search, Trips, Trip detail, Public trip, Settings, Onboarding
   db.ts                 Dexie schema (IndexedDB, offline cache)
   types.ts              shared client/sync types
 server/                 Node + Express API

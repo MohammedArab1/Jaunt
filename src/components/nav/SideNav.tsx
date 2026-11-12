@@ -5,6 +5,7 @@ import {
   CloudOff,
   Luggage,
   Plus,
+  Search,
   Settings2,
   ShieldCheck,
   Sun,
@@ -21,6 +22,7 @@ import { cn } from '@/lib/utils'
 const items = [
   { to: '/', label: 'Today', icon: Sun },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
+  { to: '/search', label: 'Search', icon: Search },
   { to: '/trips', label: 'Trips', icon: Luggage },
   { to: '/settings', label: 'Settings', icon: Settings2 },
 ] as const

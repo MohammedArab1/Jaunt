@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Search } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
 interface PageHeaderProps {
@@ -10,6 +11,7 @@ interface PageHeaderProps {
   onBack?: () => void
   backLabel?: string
   className?: string
+  showSearch?: boolean
 }
 
 export function PageHeader({
@@ -20,6 +22,7 @@ export function PageHeader({
   onBack,
   backLabel = 'Back',
   className,
+  showSearch = true,
 }: PageHeaderProps) {
   return (
     <header className={cn('mb-6', className)}>
@@ -43,7 +46,18 @@ export function PageHeader({
             <p className="mt-3 max-w-md break-words text-sm font-medium leading-relaxed text-muted">{description}</p>
           ) : null}
         </div>
-        {actions ? <div className="flex shrink-0 items-center gap-2 pt-1">{actions}</div> : null}
+        <div className="flex shrink-0 items-center gap-2 pt-1">
+          {showSearch ? (
+            <Link
+              to="/search"
+              aria-label="Search everything"
+              className="btn-icon h-10 w-10"
+            >
+              <Search className="h-4 w-4" />
+            </Link>
+          ) : null}
+          {actions}
+        </div>
       </div>
     </header>
   )
