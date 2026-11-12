@@ -9,6 +9,7 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Share2,
   Trash2,
   Users,
 } from 'lucide-react'
@@ -39,6 +40,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { PlanList } from '@/components/plan/PlanList'
 import { TripForm } from '@/components/trips/TripForm'
 import { TripMembersSheet } from '@/components/trips/TripMembersSheet'
+import { TripShareSheet } from '@/components/trips/TripShareSheet'
 
 export function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>()
@@ -67,6 +69,7 @@ export function TripDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
 
   const dayGroups = useMemo(() => {
@@ -187,6 +190,16 @@ export function TripDetailPage() {
             </span>
 
             <div className="flex items-center gap-1.5">
+              {isAccount && isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => setShareOpen(true)}
+                  className="btn-icon h-10 w-10 border-fg/15 bg-fg/10"
+                  aria-label="Share trip"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
               {isAccount ? (
                 <button
                   type="button"
@@ -390,6 +403,8 @@ export function TripDetailPage() {
           }}
         />
       ) : null}
+
+      {shareOpen ? <TripShareSheet trip={trip} onClose={() => setShareOpen(false)} /> : null}
 
       <Sheet
         open={deleteOpen}

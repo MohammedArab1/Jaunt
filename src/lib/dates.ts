@@ -56,35 +56,42 @@ export function formatTimeSlot(slot: TimeSlot): string {
   return TIME_SLOT_META[slot]?.label ?? 'Any time'
 }
 
-export function activityEndDate(activity: Pick<Activity, 'date' | 'endDate'>): string {
+type ActivityDates = { date: string; endDate?: string | null }
+type ActivityTiming = {
+  startTime?: string | null
+  endTime?: string | null
+  timeSlot?: TimeSlot | null
+}
+
+export function activityEndDate(activity: ActivityDates): string {
   return activity.endDate && activity.endDate > activity.date ? activity.endDate : activity.date
 }
 
-export function activitySpansMultipleDays(activity: Pick<Activity, 'date' | 'endDate'>): boolean {
+export function activitySpansMultipleDays(activity: ActivityDates): boolean {
   return activityEndDate(activity) !== activity.date
 }
 
-export function occursOn(activity: Pick<Activity, 'date' | 'endDate'>, date: string): boolean {
+export function occursOn(activity: ActivityDates, date: string): boolean {
   return activity.date <= date && activityEndDate(activity) >= date
 }
 
-export function overlapsRange(activity: Pick<Activity, 'date' | 'endDate'>, start: string, end: string): boolean {
+export function overlapsRange(activity: ActivityDates, start: string, end: string): boolean {
   return activity.date <= end && activityEndDate(activity) >= start
 }
 
-export function activityScheduleLabel(activity: Pick<Activity, 'startTime' | 'endTime' | 'timeSlot'>): string {
+export function activityScheduleLabel(activity: ActivityTiming): string {
   if (activity.timeSlot) return formatTimeSlot(activity.timeSlot)
-  return formatTimeRange(activity.startTime, activity.endTime)
+  return formatTimeRange(activity.startTime ?? undefined, activity.endTime ?? undefined)
 }
 
-export function activityDateRangeLabel(activity: Pick<Activity, 'date' | 'endDate'>): string | null {
+export function activityDateRangeLabel(activity: ActivityDates): string | null {
   const end = activityEndDate(activity)
   if (end === activity.date) return null
   return compactDateRange(activity.date, end)
 }
 
 export function activitySpanPosition(
-  activity: Pick<Activity, 'date' | 'endDate'>,
+  activity: ActivityDates,
   date: string,
 ): { day: number; total: number } | null {
   const end = activityEndDate(activity)
@@ -95,9 +102,7 @@ export function activitySpanPosition(
   return { day, total }
 }
 
-export function activityTimeRank(
-  activity: Pick<Activity, 'startTime' | 'timeSlot'>,
-): number {
+export function activityTimeRank(activity: Pick<ActivityTiming, 'startTime' | 'timeSlot'>): number {
   if (activity.startTime) return timeToMinutes(activity.startTime)
   if (activity.timeSlot) return TIME_SLOT_META[activity.timeSlot]?.rank ?? Number.MAX_SAFE_INTEGER
   return Number.MAX_SAFE_INTEGER

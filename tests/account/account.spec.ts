@@ -263,3 +263,56 @@ test('invites another account into a shared trip', async ({ browser }) => {
     await samContext.close()
   }
 })
+
+test('creates a read-only public link and revokes it', async ({ browser }) => {
+  const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'en-US' }
+  const ownerContext = await browser.newContext({ baseURL, ...phone })
+  const publicContext = await browser.newContext({ baseURL, ...phone })
+  const owner = await ownerContext.newPage()
+  const publicPage = await publicContext.newPage()
+
+  try {
+    await register(owner, uniqueEmail('alex.public'))
+
+    await owner.getByRole('link', { name: 'Trips' }).click()
+    await owner.getByRole('button', { name: 'New trip' }).click()
+    await owner.getByLabel('Trip name').fill('Public trip')
+    await owner.getByLabel('Destination').fill('Lisbon')
+    await owner.getByLabel('Starts').fill(localDayKey(2))
+    await owner.getByLabel('Ends').fill(localDayKey(4))
+    await owner.getByRole('button', { name: 'Create trip' }).click()
+    await expect(owner.getByRole('heading', { name: 'Public trip' })).toBeVisible()
+
+    await owner.getByRole('button', { name: 'Add a plan', exact: true }).first().click()
+    await owner.getByLabel('What is it?').fill('Sunset cruise')
+    await owner.getByLabel('Where').fill('Marina Bay')
+    await owner.getByLabel('Confirmation number').fill('SECRET123')
+    await owner.getByLabel('Notes').fill('Bring a jacket')
+    await owner.getByRole('button', { name: 'Add plan', exact: true }).click()
+    await expect(owner.getByRole('button', { name: 'View Sunset cruise' })).toBeVisible()
+    await owner.waitForTimeout(3000)
+
+    await owner.getByRole('button', { name: 'Share trip' }).click()
+    await owner.getByRole('button', { name: 'Create public link' }).click()
+    const shareUrl = await owner.getByLabel('Public share link').inputValue()
+    expect(shareUrl).toContain('/share/')
+
+    await publicPage.goto(shareUrl)
+    await expect(publicPage.getByRole('heading', { name: 'Public trip' })).toBeVisible()
+    await expect(publicPage.getByText('Sunset cruise')).toBeVisible()
+    await expect(publicPage.getByText('Marina Bay')).toBeVisible()
+    await expect(publicPage.getByText('SECRET123')).toHaveCount(0)
+    await expect(publicPage.getByText('Bring a jacket')).toHaveCount(0)
+    await expect(publicPage.getByText('Read-only', { exact: true })).toBeVisible()
+
+    await owner.getByRole('button', { name: 'Stop sharing' }).click()
+    await owner.getByRole('button', { name: 'Turn off link' }).click()
+    await expect(owner.getByRole('button', { name: 'Create public link' })).toBeVisible()
+
+    await publicPage.reload()
+    await expect(publicPage.getByText(/This link is no longer available/)).toBeVisible()
+  } finally {
+    await ownerContext.close()
+    await publicContext.close()
+  }
+})

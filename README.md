@@ -25,6 +25,7 @@ Built to live on a phone home screen.
 - **Move things around** — drag the grip handle to reorder, sort by start time, or edit a plan’s date to move it.
 - **Calendar view** — a month grid with color-coded activity dots; tap any day to see and edit its agenda.
 - **Tickets & photos** — attach up to 12 files per plan. Photos are compressed on-device; PDFs are kept as-is. Open or download them later.
+- **Public read-only links** — share a trip's itinerary with anyone, no account required. Tickets, confirmations, links, and notes stay private; revoke the link at any time.
 - **Local profiles + import** — keep guest profiles for offline use, then copy a guest profile into an account without deleting the original.
 - **Backups** — export guest data as one JSON file including tickets. Account data lives in PostgreSQL and can be dumped with `pg_dump`.
 - **Installable PWA** — app icons, offline caching, update prompts, and a proper standalone display.
@@ -251,12 +252,26 @@ Any account owner can open a trip → **People** → invite another user by emai
 - Accepted shared trips sync down and work offline like any other trip. Removing someone from a trip clears the shared copy on their device the next time they sync.
 - As with any other account data, invite acceptance and member changes require a connection.
 
+### Public read-only links
+
+A trip owner can open a trip → **Share** → **Create public link**. The link opens
+a standalone read-only itinerary page for people who do not have a Jaunt
+account. The page shows the trip name, destination, dates, and the day-by-day
+itinerary (plan names, dates, times, locations, and types).
+
+For privacy, public pages deliberately **do not** include trip/plan notes,
+confirmation numbers, external links, or ticket/photo attachments. Revoking a
+link from the Share sheet makes the old URL return “no longer available”
+immediately. Anyone with the URL can view the page, so treat the link as
+unlisted rather than password-protected.
+
 Security details:
 
 - Passwords are hashed with bcrypt (cost 12 by default).
 - Sessions are random 32-byte tokens stored hashed in PostgreSQL and sent as `HttpOnly`, `SameSite=Lax` cookies.
 - Sessions last 90 days by default and expired sessions are cleaned up.
 - Login and registration are rate limited.
+- Public share links use random 192-bit tokens stored on the trip; revoking a link clears the token and returns 404.
 - The API is only reachable through the same-origin nginx proxy in the default setup.
 - Cross-origin state-changing requests are rejected.
 - Attachment downloads force non-image/non-PDF content types to download as octet-stream, so uploaded files cannot execute as app-origin HTML.
@@ -356,7 +371,7 @@ docker compose up -d --build
 E2E_BASE_URL=http://localhost:8080 npm run test:account
 ```
 
-If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, completion state, offline queued edits, service-worker offline reload, importing a guest profile into an account, and inviting another account into a trip.
+If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, completion state, offline queued edits, service-worker offline reload, importing a guest profile into an account, inviting another account into a trip, and creating/revoking a read-only public link.
 
 Type-checking is part of `npm run build`; run `npm run typecheck` for the client and `cd server && npm run typecheck` for the API.
 
@@ -370,12 +385,12 @@ src/                    React app
   context/              auth, profiles, sync, theme, toasts, install prompt, activity sheets
   hooks/                today/now clocks
   lib/                  API client, sync engine, repos, backup, image prep, dates
-  pages/                Auth, Today, Calendar, Trips, Trip detail, Settings, Onboarding
+  pages/                Auth, Today, Calendar, Trips, Trip detail, Public trip, Settings, Onboarding
   db.ts                 Dexie schema (IndexedDB, offline cache)
   types.ts              shared client/sync types
 server/                 Node + Express API
   src/auth.ts           sessions, password hashing, auth middleware
-  src/routes/           auth, sync, attachments, sharing/invitations
+  src/routes/           auth, sync, attachments, sharing, public share links
   src/schema.ts         PostgreSQL schema + startup migrations
   src/db.ts             pg pool + retry logic
   src/tripAccess.ts     shared-trip access, tombstones, revision bumps
@@ -437,6 +452,7 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 - **No email verification or password reset.** Registration is plain email + password, as requested; no SMTP dependency.
 - **No self-service account deletion UI.** Use the SQL command above.
 - **Trip invitations are in-app only.** No email is sent; the invited person must already have an account and open their Trips page.
+- **Public links are unlisted, not password-protected.** Anyone with the URL can view the itinerary. Revoke the link when you no longer want it shared.
 - **Owners manage the trip shell.** Only the owner can rename/redate a trip, manage members, or delete it; members can edit the itinerary itself.
 - **Theme settings are per browser.** They do not sync between devices or accounts.
 - **Guest data is local to one browser.** Use backup/restore or import into an account to move it.

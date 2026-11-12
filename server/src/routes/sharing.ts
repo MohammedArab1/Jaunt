@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { Router, type NextFunction, type Request, type Response } from 'express'
 import { z } from 'zod'
 import { pool } from '../db.js'
@@ -381,5 +382,84 @@ router.post(
   }),
 )
 
+router.get(
+  '/trips/:tripId/share',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = currentUser(req).id
+    const tripId = String(req.params.tripId ?? '')
+    const ownerId = await findTripOwner(pool, tripId)
+    if (!ownerId) {
+      res.status(404).json({ error: 'Trip not found.' })
+      return
+    }
+    if (ownerId !== userId) {
+      res.status(403).json({ error: 'Only the trip owner can manage public links.' })
+      return
+    }
+
+    const result = await pool.query<{ share_token: string | null }>(
+      'SELECT share_token FROM trips WHERE id = $1 AND user_id = $2',
+      [tripId, ownerId],
+    )
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({ token: result.rows[0]?.share_token ?? null })
+  }),
+)
+
+router.post(
+  '/trips/:tripId/share',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = currentUser(req).id
+    const tripId = String(req.params.tripId ?? '')
+    const ownerId = await findTripOwner(pool, tripId)
+    if (!ownerId) {
+      res.status(404).json({ error: 'Trip not found.' })
+      return
+    }
+    if (ownerId !== userId) {
+      res.status(403).json({ error: 'Only the trip owner can manage public links.' })
+      return
+    }
+
+    const token = randomBytes(24).toString('base64url')
+    const result = await pool.query<{ share_token: string }>(
+      `UPDATE trips
+       SET share_token = COALESCE(share_token, $2)
+       WHERE id = $1 AND user_id = $3
+       RETURNING share_token`,
+      [tripId, token, ownerId],
+    )
+
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({ token: result.rows[0]?.share_token ?? null })
+  }),
+)
+
+router.delete(
+  '/trips/:tripId/share',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = currentUser(req).id
+    const tripId = String(req.params.tripId ?? '')
+    const ownerId = await findTripOwner(pool, tripId)
+    if (!ownerId) {
+      res.status(404).json({ error: 'Trip not found.' })
+      return
+    }
+    if (ownerId !== userId) {
+      res.status(403).json({ error: 'Only the trip owner can manage public links.' })
+      return
+    }
+
+    await pool.query('UPDATE trips SET share_token = NULL WHERE id = $1 AND user_id = $2', [
+      tripId,
+      ownerId,
+    ])
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({ ok: true })
+  }),
+)
 
 export default router

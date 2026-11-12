@@ -1,4 +1,13 @@
-import type { AuthUser, SyncRequest, SyncResponse, TripInvite, TripMember, TripMembersPayload } from '@/types'
+import type {
+  AuthUser,
+  PublicTripPayload,
+  SyncRequest,
+  SyncResponse,
+  TripInvite,
+  TripMember,
+  TripMembersPayload,
+  TripSharePayload,
+} from '@/types'
 
 export class ApiError extends Error {
   status: number
@@ -124,7 +133,20 @@ export const api = {
       request<{ ok: true }>(`/api/trips/${encodeURIComponent(tripId)}/leave`, {
         method: 'POST',
       }),
+    share: (tripId: string) =>
+      request<TripSharePayload>(`/api/trips/${encodeURIComponent(tripId)}/share`),
+    createShare: (tripId: string) =>
+      request<TripSharePayload>(`/api/trips/${encodeURIComponent(tripId)}/share`, {
+        method: 'POST',
+      }),
+    deleteShare: (tripId: string) =>
+      request<{ ok: true }>(`/api/trips/${encodeURIComponent(tripId)}/share`, {
+        method: 'DELETE',
+      }),
   },
+
+  publicTrip: (token: string) =>
+    request<PublicTripPayload>(`/api/public/trips/${encodeURIComponent(token)}`),
 
   async uploadAttachment(id: string, blob: Blob, mimeType: string): Promise<void> {
     let response: Response

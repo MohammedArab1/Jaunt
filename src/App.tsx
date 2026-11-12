@@ -13,6 +13,7 @@ import { CalendarPage } from '@/pages/CalendarPage'
 import { TripsPage } from '@/pages/TripsPage'
 import { TripDetailPage } from '@/pages/TripDetailPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { PublicTripPage } from '@/pages/PublicTripPage'
 
 function AppRoutes() {
   return (
@@ -43,9 +44,16 @@ export default function App() {
     }
   }, [user, location.pathname, navigate])
 
+  const isPublicShare = location.pathname.startsWith('/share/')
+  const publicToken = isPublicShare
+    ? (location.pathname.slice('/share/'.length).split('/')[0] ?? '')
+    : ''
+
   let content: React.ReactNode
 
-  if (!ready) {
+  if (isPublicShare) {
+    content = <PublicTripPage token={publicToken} />
+  } else if (!ready) {
     content = <Splash />
   } else if (mode === 'account' && user) {
     content = <AppRoutes />

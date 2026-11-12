@@ -7,6 +7,7 @@ import authRouter from './routes/auth.js'
 import syncRouter from './routes/sync.js'
 import attachmentsRouter from './routes/attachments.js'
 import sharingRouter from './routes/sharing.js'
+import publicRouter from './routes/public.js'
 
 const app = express()
 
@@ -61,6 +62,7 @@ app.use('/api/attachments', attachmentsRouter)
 app.use(express.json({ limit: '5mb' }))
 app.use('/api/auth', authRouter)
 app.use('/api/sync', syncRouter)
+app.use('/api/public', publicRouter)
 app.use('/api', sharingRouter)
 
 app.use('/api', (_req, res) => {

@@ -218,3 +218,35 @@ export interface TripMembersPayload {
   }
   members: TripMember[]
 }
+
+export interface TripSharePayload {
+  token: string | null
+}
+
+export interface PublicTripActivity {
+  id: string
+  name: string
+  date: string
+  endDate?: string | null
+  startTime?: string | null
+  endTime?: string | null
+  timeSlot?: TimeSlot | null
+  location?: string | null
+  type: ActivityType
+  completed: boolean
+  sortOrder: number
+  createdAt: number
+}
+
+export interface PublicTripPayload {
+  trip: {
+    name: string
+    destination?: string | null
+    startDate: string
+    endDate: string
+    color: string
+    emoji: string
+    ownerName: string
+  }
+  activities: PublicTripActivity[]
+}

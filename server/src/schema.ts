@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS trips (
 );
 CREATE INDEX IF NOT EXISTS trips_user_revision_idx ON trips(user_id, revision);
 
+-- Public read-only share links. A null token means the trip is private.
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS share_token text;
+CREATE UNIQUE INDEX IF NOT EXISTS trips_share_token_idx ON trips(share_token) WHERE share_token IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS activities (
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   id text NOT NULL,
