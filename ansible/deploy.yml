@@ -19,8 +19,102 @@
       -p {{ jaunt_compose_project_name }}
       -f {{ jaunt_app_dir }}/docker-compose.yml
     jaunt_cachebust: "{{ ansible_facts['date_time']['epoch'] }}-{{ 999999 | random }}"
+    jaunt_repo_root: "{{ playbook_dir }}/.."
+    jaunt_git_args:
+      - git
+      - -c
+      - "safe.directory={{ jaunt_app_dir }}"
+      - -C
+      - "{{ jaunt_app_dir }}"
 
   tasks:
+    - name: Verify the local checkout matches GitHub
+      tags: always
+      block:
+        - name: Check the local working tree
+          ansible.builtin.command:
+            argv:
+              - git
+              - -C
+              - "{{ jaunt_repo_root }}"
+              - status
+              - --porcelain
+          register: jaunt_local_status
+          changed_when: false
+          delegate_to: localhost
+          environment:
+            GIT_TERMINAL_PROMPT: "0"
+
+        - name: Refuse to deploy uncommitted local changes
+          ansible.builtin.assert:
+            that:
+              - jaunt_local_status.stdout | length == 0
+            fail_msg: |
+              Your local working tree is not clean:
+
+              {{ jaunt_local_status.stdout }}
+
+              Commit and push everything before deploying. The server only
+              deploys commits that are on GitHub.
+          delegate_to: localhost
+
+        - name: Fetch the deploy branch from GitHub
+          ansible.builtin.command:
+            argv:
+              - git
+              - -C
+              - "{{ jaunt_repo_root }}"
+              - fetch
+              - --prune
+              - origin
+              - "{{ jaunt_repo_branch }}"
+          register: jaunt_local_fetch
+          changed_when: false
+          delegate_to: localhost
+          environment:
+            GIT_TERMINAL_PROMPT: "0"
+
+        - name: Read the local commit
+          ansible.builtin.command:
+            argv:
+              - git
+              - -C
+              - "{{ jaunt_repo_root }}"
+              - rev-parse
+              - HEAD
+          register: jaunt_local_head
+          changed_when: false
+          delegate_to: localhost
+
+        - name: Read the GitHub commit
+          ansible.builtin.command:
+            argv:
+              - git
+              - -C
+              - "{{ jaunt_repo_root }}"
+              - rev-parse
+              - "origin/{{ jaunt_repo_branch }}"
+          register: jaunt_remote_head
+          changed_when: false
+          delegate_to: localhost
+
+        - name: Require local HEAD to match GitHub
+          ansible.builtin.assert:
+            that:
+              - jaunt_local_head.stdout == jaunt_remote_head.stdout
+            fail_msg: |
+              Local HEAD is {{ jaunt_local_head.stdout }},
+              but origin/{{ jaunt_repo_branch }} is {{ jaunt_remote_head.stdout }}.
+
+              Push your commits, or pull the latest changes, so the two match.
+              The server never deploys uncommitted or unpushed work.
+          delegate_to: localhost
+
+        - name: Show the commit being deployed
+          ansible.builtin.debug:
+            msg: "Deploying {{ jaunt_local_head.stdout }} from origin/{{ jaunt_repo_branch }}."
+          delegate_to: localhost
+
     - name: Load production overrides when present
       tags: always
       block:
@@ -176,32 +270,148 @@
         owner: root
         group: root
         mode: "0755"
-      tags: sync
+      tags: git
 
-    - name: Sync application source
-      ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../"
-        dest: "{{ jaunt_app_dir }}/"
-        delete: true
-        recursive: true
-        use_ssh_args: true
-        rsync_opts:
-          - "--exclude=.git/"
-          - "--exclude=node_modules/"
-          - "--exclude=server/node_modules/"
-          - "--exclude=dist/"
-          - "--exclude=server/dist/"
-          - "--exclude=.env"
-          - "--exclude=.tmp/"
-          - "--exclude=test-results/"
-          - "--exclude=playwright-report/"
-          - "--exclude=blob-report/"
-          - "--exclude=tests/"
-          - "--exclude=/ansible/"
-          - "--exclude=/backups/"
-          - "--exclude=*.log"
-          - "--exclude=.DS_Store"
-      tags: sync
+    - name: Ensure the deployment tree is owned by root
+      ansible.builtin.file:
+        path: "{{ jaunt_app_dir }}"
+        state: directory
+        owner: root
+        group: root
+        recurse: true
+      tags: git
+
+    - name: Verify Git is available
+      ansible.builtin.command:
+        cmd: git --version
+      changed_when: false
+      tags: git
+
+    - name: Check whether the deployment is a Git checkout
+      ansible.builtin.stat:
+        path: "{{ jaunt_app_dir }}/.git"
+      register: jaunt_git_dir
+      tags: git
+
+    - name: Initialize Git on first deploy
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['init'] }}"
+      when: not jaunt_git_dir.stat.exists
+      changed_when: true
+      tags: git
+
+    - name: Add the GitHub origin on first deploy
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['remote', 'add', 'origin', jaunt_repo_url] }}"
+      when: not jaunt_git_dir.stat.exists
+      changed_when: true
+      tags: git
+
+    - name: Read the existing Git origin
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['remote', 'get-url', 'origin'] }}"
+      register: jaunt_git_origin
+      changed_when: false
+      failed_when: false
+      when: jaunt_git_dir.stat.exists
+      tags: git
+
+    - name: Point Git at GitHub
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['remote', 'set-url', 'origin', jaunt_repo_url] }}"
+      when:
+        - jaunt_git_dir.stat.exists
+        - (jaunt_git_origin.get('rc', 1)) == 0
+        - jaunt_git_origin.get('stdout', '') != jaunt_repo_url
+      changed_when: true
+      tags: git
+
+    - name: Add the GitHub origin
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['remote', 'add', 'origin', jaunt_repo_url] }}"
+      when:
+        - jaunt_git_dir.stat.exists
+        - (jaunt_git_origin.get('rc', 1)) != 0
+      changed_when: true
+      tags: git
+
+    - name: Fetch the deploy branch from GitHub
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['fetch', '--prune', 'origin', jaunt_repo_branch] }}"
+      changed_when: false
+      environment:
+        GIT_TERMINAL_PROMPT: "0"
+      tags: git
+
+    - name: Remove untracked files while preserving local state
+      ansible.builtin.command:
+        argv:
+          - git
+          - -c
+          - "safe.directory={{ jaunt_app_dir }}"
+          - -C
+          - "{{ jaunt_app_dir }}"
+          - clean
+          - -fd
+          - -e
+          - .env
+          - -e
+          - backups
+          - -e
+          - node_modules
+          - -e
+          - dist
+          - -e
+          - server/node_modules
+          - -e
+          - server/dist
+          - -e
+          - Caddyfile
+          - -e
+          - ansible/vars/production.yml
+      register: jaunt_git_clean
+      changed_when: jaunt_git_clean.stdout | length > 0
+      tags: git
+
+    - name: Check out the GitHub commit
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['checkout', '-f', '-B', jaunt_repo_branch, 'origin/' ~ jaunt_repo_branch] }}"
+      changed_when: true
+      tags: git
+
+    - name: Verify the deployment tree is clean
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['status', '--porcelain'] }}"
+      register: jaunt_git_status
+      changed_when: false
+      tags: git
+
+    - name: Confirm the deployment tree has no local modifications
+      ansible.builtin.assert:
+        that:
+          - jaunt_git_status.stdout | length == 0
+        fail_msg: |
+          The server checkout still has local modifications after the Git update:
+
+          {{ jaunt_git_status.stdout }}
+      tags: git
+
+    - name: Read the deployed commit
+      ansible.builtin.command:
+        argv: "{{ jaunt_git_args + ['rev-parse', 'HEAD'] }}"
+      register: jaunt_deployed_commit
+      changed_when: false
+      tags: git
+
+    - name: Confirm the server is on the GitHub commit
+      ansible.builtin.assert:
+        that:
+          - jaunt_deployed_commit.stdout == jaunt_local_head.stdout
+        fail_msg: |
+          Server HEAD is {{ jaunt_deployed_commit.stdout }},
+          but the verified GitHub commit is {{ jaunt_local_head.stdout }}.
+          Someone may have pushed while this deploy was running; re-run it.
+      tags: git
 
     - name: Write the deployment environment
       ansible.builtin.template:
@@ -644,6 +854,7 @@
       ansible.builtin.debug:
         msg:
           - "Deployment target: {{ inventory_hostname }}."
+          - "Deployed commit: {{ (jaunt_deployed_commit.stdout if jaunt_deployed_commit is defined else 'not updated this run') }} ({{ jaunt_repo_branch }})"
           - "Local URL: http://{{ jaunt_web_bind }}:{{ jaunt_web_port }}"
           - "Public URL: {{ ('https://' ~ jaunt_domain) if (jaunt_domain | length > 0) else 'not configured (set jaunt_domain and add a Caddy site)' }}"
           - "Database backup: {{ jaunt_backup_file | default('none (no database volume yet)') }}"

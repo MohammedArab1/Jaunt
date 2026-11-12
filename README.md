@@ -122,19 +122,32 @@ cp ansible/vars/production.example.yml ansible/vars/production.yml
 # edit it; the file is gitignored and can be ansible-vault encrypted
 ```
 
-Deploy:
+The GitHub repository is the source of truth. The deploy refuses to run if
+your local working tree is dirty or if `HEAD` differs from
+`origin/main`. Commit and push first:
 
 ```bash
+git add -A
+git commit -m "Describe the change"
+git push origin main
 ./ansible/deploy.sh
 # or
 npm run deploy
 ```
 
+The server keeps its own checkout at `/root/Jaunt`, fetches `origin/main`,
+and hard-resets to it. Uncommitted local files are never copied to the server.
+The repository is public, so the server fetches over HTTPS without
+credentials. If you make it private, configure a read-only deploy key on the
+server or point `jaunt_repo_url` at an authenticated URL.
+
 Each run:
 
 1. Ensures a 2 GB swap file exists (this is a small shared host).
-2. Syncs the working tree, excluding `.git`, dependencies, build output,
-   tests, the local `.env`, and backups.
+2. Pulls the pushed `main` commit from
+   `https://github.com/MohammedArab1/Jaunt.git` into `/root/Jaunt` with
+   `git fetch` and a hard reset. Untracked files are removed, except the
+   gitignored `.env`, `backups/`, dependencies, and build output.
 3. Renders `.env` from `ansible/group_vars/all.yml` and the preserved
    database password.
 4. Dumps PostgreSQL to `backups/` (14-day retention) and tests the archive.

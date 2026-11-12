@@ -2,6 +2,11 @@
 # Where the app is checked out on the server.
 jaunt_app_dir: /root/Jaunt
 
+# GitHub is the source of truth. The server fetches this branch and hard-resets
+# to it; local uncommitted work is never sent to the server.
+jaunt_repo_url: "https://github.com/MohammedArab1/Jaunt.git"
+jaunt_repo_branch: main
+
 # Keep the Compose project name stable across deploys. It matches the
 # deployment directory and the existing container names on the host.
 jaunt_compose_project_name: jaunt

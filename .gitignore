@@ -12,3 +12,4 @@ blob-report/
 ansible/vars/production.yml
 ansible/*.retry
 backups/
+Caddyfile
