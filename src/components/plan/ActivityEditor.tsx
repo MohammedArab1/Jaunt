@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  CalendarDays,
   CalendarRange,
   Check,
   ChevronDown,
@@ -31,6 +30,7 @@ import { useProfile } from '@/context/ProfileContext'
 import { useToast } from '@/context/ToastContext'
 import { Sheet } from '@/components/ui/Sheet'
 import { Field } from '@/components/ui/Field'
+import { DateInput } from '@/components/ui/DateInput'
 import { AttachmentTile } from '@/components/attachments/AttachmentTile'
 
 interface StagedFile {
@@ -357,31 +357,16 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
 
           <div className={cn('grid gap-3', endDate ? 'grid-cols-2' : 'grid-cols-1')}>
             <Field label={endDate ? 'Start date' : 'Date'} htmlFor="activity-date">
-              <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                <input
-                  id="activity-date"
-                  type="date"
-                  value={date}
-                  onChange={(event) => updateDate(event.target.value)}
-                  className="field pl-10"
-                  required
-                />
-              </div>
+              <DateInput id="activity-date" value={date} onChange={updateDate} required />
             </Field>
             {endDate ? (
               <Field label="End date" htmlFor="activity-end-date">
-                <div className="relative">
-                  <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                  <input
-                    id="activity-end-date"
-                    type="date"
-                    value={endDate}
-                    min={date}
-                    onChange={(event) => setEndDate(event.target.value)}
-                    className="field pl-10"
-                  />
-                </div>
+                <DateInput
+                  id="activity-end-date"
+                  value={endDate}
+                  min={date}
+                  onChange={setEndDate}
+                />
               </Field>
             ) : null}
           </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarDays, Loader2, MapPin, StickyNote } from 'lucide-react'
+import { Loader2, MapPin, StickyNote } from 'lucide-react'
 import { addDays } from 'date-fns'
 import type { Trip } from '@/types'
 import { dateKey, dateRangeLabel, formatDay, todayKey } from '@/lib/dates'
@@ -10,6 +10,7 @@ import { useProfile } from '@/context/ProfileContext'
 import { useToast } from '@/context/ToastContext'
 import { Sheet } from '@/components/ui/Sheet'
 import { Field } from '@/components/ui/Field'
+import { DateInput } from '@/components/ui/DateInput'
 
 interface TripFormProps {
   trip?: Trip
@@ -158,29 +159,15 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Starts" htmlFor="trip-start">
-            <div className="relative">
-              <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                id="trip-start"
-                type="date"
-                value={startDate}
-                onChange={(event) => updateStart(event.target.value)}
-                className="field pl-10"
-              />
-            </div>
+            <DateInput id="trip-start" value={startDate} onChange={updateStart} />
           </Field>
           <Field label="Ends" htmlFor="trip-end">
-            <div className="relative">
-              <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                id="trip-end"
-                type="date"
-                value={endDate}
-                min={startDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                className="field pl-10"
-              />
-            </div>
+            <DateInput
+              id="trip-end"
+              value={endDate}
+              min={startDate}
+              onChange={setEndDate}
+            />
           </Field>
         </div>
         {startDate && endDate && endDate >= startDate ? (
