@@ -3,10 +3,12 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { formatDistanceToNowStrict } from 'date-fns'
 import {
   AlertTriangle,
+  ChevronRight,
   Cloud,
   CloudOff,
   Database,
   Import as ImportIcon,
+  KeyRound,
   LogOut,
   Pencil,
   RefreshCw,
@@ -29,6 +31,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { ProfileForm } from '@/components/profile/ProfileForm'
 import { InstallCard } from '@/components/settings/InstallCard'
 import { AppearanceCard } from '@/components/settings/AppearanceCard'
+import { ChangePasswordSheet } from '@/components/settings/ChangePasswordSheet'
 
 interface GuestStats {
   trips: number
@@ -44,6 +47,7 @@ export function AccountSettingsPage() {
 
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const [importTarget, setImportTarget] = useState<Profile | null>(null)
 
   const tripCount = useLiveQuery(
@@ -144,6 +148,36 @@ export function AccountSettingsPage() {
             aria-label="Edit account profile"
           >
             <Pencil className="h-4 w-4" />
+          </button>
+        </div>
+      </section>
+
+      <section className="mt-8">
+        <div className="mb-3">
+          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">
+            Password
+          </h2>
+          <p className="mt-1 text-xs font-medium text-muted">
+            Change the password used to sign in to this account.
+          </p>
+        </div>
+
+        <div className="surface overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setPasswordOpen(true)}
+            className="flex w-full items-center gap-3.5 p-4 text-left transition hover:bg-fg/[0.03]"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] text-muted">
+              <KeyRound className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-extrabold text-fg">Change password</span>
+              <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
+                Other devices will be signed out. This device stays signed in.
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
           </button>
         </div>
       </section>
@@ -310,6 +344,10 @@ export function AccountSettingsPage() {
           </p>
         </div>
       </ConfirmDialog>
+
+      {passwordOpen ? (
+        <ChangePasswordSheet onClose={() => setPasswordOpen(false)} />
+      ) : null}
 
       {editOpen ? (
         <Sheet

@@ -316,3 +316,38 @@ test('creates a read-only public link and revokes it', async ({ browser }) => {
     await publicContext.close()
   }
 })
+
+test('changes the account password and signs out other devices', async ({ page, browser }) => {
+  const email = uniqueEmail('mo.password')
+  const newPassword = 'newsupersecret123'
+  await register(page, email)
+
+  const second = await loginOnNewDevice(browser, email)
+  try {
+    await page.getByRole('link', { name: 'More' }).click()
+    await page.getByRole('button', { name: 'Change password' }).click()
+    await page.getByLabel('Current password', { exact: true }).fill(password)
+    await page.getByLabel('New password', { exact: true }).fill(newPassword)
+    await page.getByLabel('Confirm new password', { exact: true }).fill(newPassword)
+    await page.getByRole('button', { name: 'Save new password' }).click()
+    await expect(page.getByText(/Password changed/)).toBeVisible()
+
+    await second.page.reload()
+    await expect(second.page.getByRole('heading', { name: 'Sign in to Jaunt.' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Sign out of this device' }).click()
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Sign in to Jaunt.' })).toBeVisible()
+
+    await page.getByLabel('Email').fill(email)
+    await page.getByLabel('Password', { exact: true }).fill(password)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('alert')).toHaveText(/Email or password is incorrect/)
+
+    await page.getByLabel('Password', { exact: true }).fill(newPassword)
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { name: /Good/ })).toBeVisible()
+  } finally {
+    await second.close()
+  }
+})

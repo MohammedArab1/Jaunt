@@ -27,6 +27,7 @@ Built to live on a phone home screen.
 - **Tickets & photos** — attach up to 12 files per plan. Photos are compressed on-device; PDFs are kept as-is. Open or download them later.
 - **Public read-only links** — share a trip's itinerary with anyone, no account required. Tickets, confirmations, links, and notes stay private; revoke the link at any time.
 - **Global search** — find trips, plans, places, confirmation numbers, and notes from one page. It reads the offline cache, so it works without a connection and includes shared trips.
+- **Password management** — change your password from Settings. The current device stays signed in and every other session is signed out.
 - **Local profiles + import** — keep guest profiles for offline use, then copy a guest profile into an account without deleting the original.
 - **Backups** — export guest data as one JSON file including tickets. Account data lives in PostgreSQL and can be dumped with `pg_dump`.
 - **Installable PWA** — app icons, offline caching, update prompts, and a proper standalone display.
@@ -269,6 +270,7 @@ unlisted rather than password-protected.
 Security details:
 
 - Passwords are hashed with bcrypt (cost 12 by default).
+- Passwords can be changed in **Settings → Password**. The change requires the current password and signs out every other session; the current device stays signed in.
 - Sessions are random 32-byte tokens stored hashed in PostgreSQL and sent as `HttpOnly`, `SameSite=Lax` cookies.
 - Sessions last 90 days by default and expired sessions are cleaned up.
 - Login and registration are rate limited.
@@ -277,7 +279,7 @@ Security details:
 - Cross-origin state-changing requests are rejected.
 - Attachment downloads force non-image/non-PDF content types to download as octet-stream, so uploaded files cannot execute as app-origin HTML.
 
-Because there is no reset email, **store your password safely**. If you lose it, an administrator with database access can help; there is no self-service recovery.
+Change your password any time from **Settings → Password**. Because there is no reset email, **store your password safely**. If you lose it, an administrator with database access can help; there is no self-service recovery.
 
 Account display name and color start from the email and can be changed in **Settings → Edit account profile**.
 
@@ -372,7 +374,7 @@ docker compose up -d --build
 E2E_BASE_URL=http://localhost:8080 npm run test:account
 ```
 
-If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, completion state, offline queued edits, service-worker offline reload, importing a guest profile into an account, inviting another account into a trip, and creating/revoking a read-only public link.
+If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, completion state, offline queued edits, service-worker offline reload, importing a guest profile into an account, inviting another account into a trip, creating/revoking a read-only public link, and changing a password with other sessions signed out.
 
 Type-checking is part of `npm run build`; run `npm run typecheck` for the client and `cd server && npm run typecheck` for the API.
 

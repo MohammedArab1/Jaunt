@@ -95,6 +95,11 @@ export const api = {
         method: 'PATCH',
         body: { displayName, color },
       }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<{ ok: true }>('/api/auth/password', {
+        method: 'PATCH',
+        body: { currentPassword, newPassword },
+      }),
   },
 
   sync: (payload: SyncRequest) =>

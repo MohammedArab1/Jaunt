@@ -40,6 +40,14 @@ const credentialsSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters.').max(128, 'Password is too long.'),
 })
 
+const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1, 'Enter your current password.').max(128, 'Password is too long.'),
+  newPassword: z
+    .string()
+    .min(8, 'New password must be at least 8 characters.')
+    .max(128, 'Password is too long.'),
+})
+
 function asyncHandler(
   handler: (req: Request, res: Response) => Promise<void>,
 ): (req: Request, res: Response, next: NextFunction) => void {
@@ -169,6 +177,56 @@ router.patch(
     )
 
     res.json({ user: publicUser(result.rows[0]) })
+  }),
+)
+
+router.patch(
+  '/password',
+  requireAuth,
+  authLimiter,
+  asyncHandler(async (req, res) => {
+    const parsed = passwordChangeSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: firstIssue(parsed.error) })
+      return
+    }
+
+    const { currentPassword, newPassword } = parsed.data
+    if (!passwordFitsBcrypt(currentPassword) || !passwordFitsBcrypt(newPassword)) {
+      res.status(400).json({ error: 'Passwords must be 72 bytes or fewer.' })
+      return
+    }
+
+    const userId = currentUser(req).id
+    const result = await pool.query<{ password_hash: string }>(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [userId],
+    )
+    const row = result.rows[0]
+    if (!row || !(await verifyPassword(currentPassword, row.password_hash))) {
+      res.status(400).json({ error: 'Current password is incorrect.' })
+      return
+    }
+
+    if (await verifyPassword(newPassword, row.password_hash)) {
+      res.status(400).json({ error: 'Choose a password that is different from your current one.' })
+      return
+    }
+
+    const passwordHash = await hashPassword(newPassword)
+    await pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [userId, passwordHash])
+
+    // Changing the password signs out every other device. This session stays valid.
+    if (req.sessionTokenHash) {
+      await pool.query(
+        'DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2',
+        [userId, req.sessionTokenHash],
+      )
+    }
+
+    await cleanupExpiredSessions()
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({ ok: true })
   }),
 )
 
