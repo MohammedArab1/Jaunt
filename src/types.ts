@@ -250,3 +250,16 @@ export interface PublicTripPayload {
   }
   activities: PublicTripActivity[]
 }
+
+export interface CityOption {
+  id: string
+  name: string
+  country?: string
+  admin1?: string
+  latitude: number
+  longitude: number
+}
+
+export interface GeocodeResponse {
+  results: CityOption[]
+}

@@ -245,7 +245,7 @@ export function AuthScreen() {
                   onClick={() => switchMode(isRegister ? 'login' : 'register')}
                   className="font-extrabold text-coral transition hover:opacity-80"
                 >
-                  {isRegister ? 'Sign in' : 'Create one'}
+                  {isRegister ? 'Sign in' : 'create an account'}
                 </button>
               </p>
 

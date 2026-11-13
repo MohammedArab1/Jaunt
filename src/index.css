@@ -356,3 +356,11 @@ html[data-theme="light"] .dark-scope .trip-color-text { color: var(--trip-color)
     scroll-behavior: auto !important;
   }
 }
+
+/* The component-layer .field rule removes outlines; keep a visible focus ring
+   on native date/time controls (outside the cascade layers). */
+input[type="date"]:focus,
+input[type="time"]:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-coral) 90%, transparent);
+  outline-offset: 2px;
+}

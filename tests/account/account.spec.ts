@@ -16,7 +16,7 @@ function uniqueEmail(prefix: string): string {
 
 async function register(page: Page, email: string) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Create one' }).click()
+  await page.getByRole('button', { name: 'create an account' }).click()
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Create account' }).click()
@@ -170,8 +170,8 @@ test('syncs a trip across devices and keeps plans when the trip is deleted', asy
   await page.getByRole('link', { name: 'Trips' }).click()
   await page.getByRole('button', { name: 'New trip' }).click()
   await page.getByLabel('Trip name').fill('Sync trip')
-  await page.getByLabel('Starts').fill(start)
-  await page.getByLabel('Ends').fill(end)
+  await page.locator('#trip-start').fill(start)
+  await page.locator('#trip-end').fill(end)
   await page.getByRole('button', { name: 'Create trip' }).click()
   await expect(page.getByRole('heading', { name: 'Sync trip' })).toBeVisible()
 
@@ -226,8 +226,8 @@ test('invites another account into a shared trip', async ({ browser }) => {
     await alex.getByRole('link', { name: 'Trips' }).click()
     await alex.getByRole('button', { name: 'New trip' }).click()
     await alex.getByLabel('Trip name').fill('Shared trip')
-    await alex.getByLabel('Starts').fill(localDayKey(2))
-    await alex.getByLabel('Ends').fill(localDayKey(4))
+    await alex.locator('#trip-start').fill(localDayKey(2))
+    await alex.locator('#trip-end').fill(localDayKey(4))
     await alex.getByRole('button', { name: 'Create trip' }).click()
     await expect(alex.getByRole('heading', { name: 'Shared trip' })).toBeVisible()
 
@@ -278,8 +278,9 @@ test('creates a read-only public link and revokes it', async ({ browser }) => {
     await owner.getByRole('button', { name: 'New trip' }).click()
     await owner.getByLabel('Trip name').fill('Public trip')
     await owner.getByLabel('Destination').fill('Lisbon')
-    await owner.getByLabel('Starts').fill(localDayKey(2))
-    await owner.getByLabel('Ends').fill(localDayKey(4))
+    await owner.keyboard.press('Enter')
+    await owner.locator('#trip-start').fill(localDayKey(2))
+    await owner.locator('#trip-end').fill(localDayKey(4))
     await owner.getByRole('button', { name: 'Create trip' }).click()
     await expect(owner.getByRole('heading', { name: 'Public trip' })).toBeVisible()
 

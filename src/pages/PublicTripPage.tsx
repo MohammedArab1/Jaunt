@@ -193,9 +193,9 @@ export function PublicTripPage({ token }: PublicTripPageProps) {
             </h1>
 
             {trip.destination ? (
-              <p className="mt-2 flex items-center gap-1.5 text-sm font-bold text-fg/80">
-                <MapPin className="h-3.5 w-3.5" />
-                {trip.destination}
+              <p className="mt-2 flex min-w-0 items-start gap-1.5 text-sm font-bold text-fg/80">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="break-words">{trip.destination}</span>
               </p>
             ) : null}
 

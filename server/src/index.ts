@@ -8,6 +8,7 @@ import syncRouter from './routes/sync.js'
 import attachmentsRouter from './routes/attachments.js'
 import sharingRouter from './routes/sharing.js'
 import publicRouter from './routes/public.js'
+import geocodeRouter from './routes/geocode.js'
 
 const app = express()
 
@@ -63,6 +64,7 @@ app.use(express.json({ limit: '5mb' }))
 app.use('/api/auth', authRouter)
 app.use('/api/sync', syncRouter)
 app.use('/api/public', publicRouter)
+app.use('/api/geocode', geocodeRouter)
 app.use('/api', sharingRouter)
 
 app.use('/api', (_req, res) => {

@@ -1,5 +1,6 @@
 import type {
   AuthUser,
+  GeocodeResponse,
   PublicTripPayload,
   SyncRequest,
   SyncResponse,
@@ -101,6 +102,11 @@ export const api = {
         body: { currentPassword, newPassword },
       }),
   },
+
+  geocode: (query: string) =>
+    request<GeocodeResponse>(`/api/geocode?q=${encodeURIComponent(query)}`, {
+      timeoutMs: 8_000,
+    }),
 
   sync: (payload: SyncRequest) =>
     request<SyncResponse>('/api/sync', {

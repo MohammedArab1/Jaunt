@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, MapPin, StickyNote } from 'lucide-react'
+import { Loader2, StickyNote } from 'lucide-react'
 import { addDays } from 'date-fns'
 import type { Trip } from '@/types'
 import { dateKey, dateRangeLabel, formatDay, todayKey } from '@/lib/dates'
@@ -11,6 +11,7 @@ import { useToast } from '@/context/ToastContext'
 import { Sheet } from '@/components/ui/Sheet'
 import { Field } from '@/components/ui/Field'
 import { DateInput } from '@/components/ui/DateInput'
+import { DestinationCombobox } from '@/components/trips/DestinationCombobox'
 
 interface TripFormProps {
   trip?: Trip
@@ -22,7 +23,14 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
   const { profile } = useProfile()
   const { toast } = useToast()
   const [name, setName] = useState(trip?.name ?? '')
-  const [destination, setDestination] = useState(trip?.destination ?? '')
+  const [destinations, setDestinations] = useState<string[]>(() =>
+    trip?.destination
+      ? trip.destination
+          .split(' · ')
+          .map((city) => city.trim())
+          .filter(Boolean)
+      : [],
+  )
   const [startDate, setStartDate] = useState(trip?.startDate ?? todayKey())
   const [endDate, setEndDate] = useState(trip?.endDate ?? dateKey(addDays(new Date(), 2)))
   const [color, setColor] = useState(trip?.color ?? TRIP_COLORS[0])
@@ -52,11 +60,17 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
     }
     if (!profile) return
 
+    const destination = destinations.join(' · ')
+    if (destination.length > 300) {
+      setError('Keep the destination under 300 characters.')
+      return
+    }
+
     setBusy(true)
     try {
       const fields = {
         name: name.trim(),
-        destination: destination.trim() || undefined,
+        destination: destination || undefined,
         startDate,
         endDate,
         color,
@@ -144,17 +158,11 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
         </Field>
 
         <Field label="Destination" htmlFor="trip-destination">
-          <div className="relative">
-            <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input
-              id="trip-destination"
-              value={destination}
-              onChange={(event) => setDestination(event.target.value)}
-              placeholder="Lisbon, Portugal"
-              className="field pl-10"
-              maxLength={100}
-            />
-          </div>
+          <DestinationCombobox
+            id="trip-destination"
+            value={destinations}
+            onChange={setDestinations}
+          />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">

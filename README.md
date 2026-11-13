@@ -20,6 +20,7 @@ Built to live on a phone home screen.
 - **Cross-device sync** — account data is stored in PostgreSQL per user and pulled into each device. Works alongside an offline-first browser cache.
 - **Offline-first** — fresh plans and edits are saved immediately in IndexedDB even when the network is down. They sync automatically when you reconnect.
 - **Multi-day trips** — name a trip, pick the dates, choose a color and emoji, then build it out day by day.
+- **Multi-city destinations** — search live city suggestions through a server-side Open-Meteo proxy, pick several cities, or type a custom destination that isn’t listed. Suggestions need a connection; typed cities always work.
 - **Rich plans** — name, date, start/end time, location, type, notes, confirmation number, link, and multiple photo/PDF tickets.
 - **Cross things off** — tap the circle; completed plans fade and progress updates.
 - **Move things around** — drag the grip handle to reorder, sort by start time, or edit a plan’s date to move it.
@@ -363,7 +364,7 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-Covers: offline onboarding, local profiles, plan creation, drag reorder, completion persistence, offline reload, trips, guest backups/restore, multi-day plans, day-part timing, empty time fields, light mode persistence, global search across trips/plans/places/confirmations/notes, and the sign-in gate with “Continue offline.”
+Covers: offline onboarding, local profiles, plan creation, drag reorder, completion persistence, offline reload, trips, multi-city destinations, guest backups/restore, multi-day plans, day-part timing, empty time fields, light mode persistence, global search across trips/plans/places/confirmations/notes, and the sign-in gate with “Continue offline.”
 
 ### Account / full-stack suite
 
@@ -393,7 +394,7 @@ src/                    React app
   types.ts              shared client/sync types
 server/                 Node + Express API
   src/auth.ts           sessions, password hashing, auth middleware
-  src/routes/           auth, sync, attachments, sharing, public share links
+  src/routes/           auth, sync, attachments, sharing, public share links, city search
   src/schema.ts         PostgreSQL schema + startup migrations
   src/db.ts             pg pool + retry logic
   src/tripAccess.ts     shared-trip access, tombstones, revision bumps
@@ -456,6 +457,7 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 - **No self-service account deletion UI.** Use the SQL command above.
 - **Trip invitations are in-app only.** No email is sent; the invited person must already have an account and open their Trips page.
 - **Public links are unlisted, not password-protected.** Anyone with the URL can view the itinerary. Revoke the link when you no longer want it shared.
+- **Live city suggestions need a connection.** The destination field always accepts typed cities, but suggestions are fetched through the server from [Open-Meteo](https://open-meteo.com/) and are unavailable offline.
 - **Owners manage the trip shell.** Only the owner can rename/redate a trip, manage members, or delete it; members can edit the itinerary itself.
 - **Theme settings are per browser.** They do not sync between devices or accounts.
 - **Guest data is local to one browser.** Use backup/restore or import into an account to move it.
