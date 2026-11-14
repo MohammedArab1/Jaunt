@@ -64,6 +64,16 @@ function planNames(page: Page) {
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')?.replace('View ', '')))
 }
 
+async function createTrip(page: Page, name: string, start: string, end: string) {
+  await page.getByRole('link', { name: 'Trips' }).click()
+  await page.getByRole('button', { name: 'New trip' }).click()
+  await page.getByLabel('Trip name').fill(name)
+  await page.locator('#trip-start').fill(start)
+  await page.locator('#trip-end').fill(end)
+  await page.getByRole('button', { name: 'Create trip' }).click()
+  await expect(page.getByRole('heading', { name })).toBeVisible()
+}
+
 test('plan a day, reorder it, cross things off, and reload offline', async ({ page, context }) => {
   await onboard(page)
   await addLoosePlan(page, 'Late plan', '18:00')
@@ -156,6 +166,61 @@ test('interleaves early morning and specific-time plans in time order', async ({
   await addTimedPlan(page, '3am taxi', '03:00')
 
   await expect.poll(() => planNames(page)).toEqual(['Red-eye', '3am taxi', 'Breakfast'])
+})
+
+test('shows every trip that is active today on the dashboard', async ({ page }) => {
+  await onboard(page, 'Traveler')
+
+  await createTrip(page, 'Trip A', localDayKey(0), localDayKey(1))
+  await createTrip(page, 'Trip B', localDayKey(0), localDayKey(2))
+
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: /Trip A/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Trip B/ })).toBeVisible()
+})
+
+test('uses start, any-time, and end timing across multi-day plan instances', async ({ page }) => {
+  await onboard(page, 'Long')
+  await createTrip(page, 'Long trip', localDayKey(0), localDayKey(2))
+
+  const openEditor = () =>
+    page.locator('main').getByRole('button', { name: 'Add a plan', exact: true }).first().click()
+
+  await openEditor()
+  await page.getByLabel('What is it?').fill('Timed journey')
+  await page.getByRole('button', { name: 'Multi-day' }).click()
+  await page.locator('#activity-date').fill(localDayKey(0))
+  await page.locator('#activity-end-date').fill(localDayKey(2))
+  await page.getByRole('button', { name: 'Time', exact: true }).click()
+  await page.getByLabel('Start time', { exact: true }).fill('12:30')
+  await page.getByLabel('End time', { exact: true }).fill('17:30')
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'View Timed journey' }).first()).toBeVisible()
+
+  await openEditor()
+  await page.getByLabel('What is it?').fill('Evening plan')
+  await page.getByRole('button', { name: 'Multi-day' }).click()
+  await page.locator('#activity-date').fill(localDayKey(0))
+  await page.locator('#activity-end-date').fill(localDayKey(2))
+  await page.getByRole('button', { name: 'Part of day' }).click()
+  await page.getByRole('button', { name: /^Evening/ }).click()
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'View Evening plan' }).first()).toBeVisible()
+
+  const daySection = (day: number) =>
+    page.locator('section').filter({ has: page.getByText(`Day ${day}`, { exact: true }) })
+
+  const day1 = daySection(1)
+  await expect(day1.getByText('12:30 PM')).toBeVisible()
+  await expect(day1.getByText('Evening', { exact: true })).toBeVisible()
+  await expect(day1.getByText('Any time')).toHaveCount(0)
+
+  const day2 = daySection(2)
+  await expect(day2.getByText('Any time')).toHaveCount(2)
+
+  const day3 = daySection(3)
+  await expect(day3.getByText('5:30 PM')).toBeVisible()
+  await expect(day3.getByText('Any time')).toHaveCount(1)
 })
 
 test('builds a trip, keeps its plans when deleted, and restores a backup', async ({ page }) => {

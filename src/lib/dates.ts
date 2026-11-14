@@ -140,6 +140,52 @@ export function activitySpanPosition(
   return { day, total }
 }
 
+/**
+ * Returns the timing that should be shown for one day of a multi-day plan.
+ *
+ * First instance: the start time or day-part.
+ * Last instance: the end time, if one exists.
+ * Middle instances: no time at all.
+ *
+ * A single-day plan is returned unchanged.
+ */
+export function activityForDate<
+  T extends {
+    date: string
+    endDate?: string | null
+    startTime?: string | null
+    endTime?: string | null
+    timeSlot?: TimeSlot | null
+  },
+>(activity: T, date: string): T {
+  const end = activityEndDate(activity)
+  if (end === activity.date) return activity
+
+  if (date === activity.date) {
+    return {
+      ...activity,
+      endTime: undefined,
+      timeSlot: activity.startTime ? undefined : activity.timeSlot,
+    } as T
+  }
+
+  if (date === end) {
+    return {
+      ...activity,
+      startTime: activity.endTime ?? undefined,
+      endTime: undefined,
+      timeSlot: undefined,
+    } as T
+  }
+
+  return {
+    ...activity,
+    startTime: undefined,
+    endTime: undefined,
+    timeSlot: undefined,
+  } as T
+}
+
 export function activityTimeRank(activity: Pick<ActivityTiming, 'startTime' | 'timeSlot'>): number {
   if (activity.startTime) return timeToMinutes(activity.startTime)
   if (activity.timeSlot) return TIME_SLOT_META[activity.timeSlot]?.sortRank ?? Number.MAX_SAFE_INTEGER

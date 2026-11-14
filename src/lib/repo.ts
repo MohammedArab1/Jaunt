@@ -3,6 +3,7 @@ import type { Activity, Attachment, Profile, Trip } from '@/types'
 import { newId } from './id'
 import {
   activityEndDate,
+  activityForDate,
   activityTimeRank,
   eachDayKey,
   occursOn,
@@ -198,10 +199,18 @@ export async function reorderVisibleActivities(
 export async function sortDayByTime(profileId: string, date: string): Promise<void> {
   await db.transaction('rw', db.activities, async () => {
     const all = await db.activities.where('profileId').equals(profileId).toArray()
-    const activities = sortActivitiesByTime(all.filter((activity) => occursOn(activity, date)))
+    const originals = all.filter((activity) => occursOn(activity, date))
+    const byId = new Map(originals.map((activity) => [activity.id, activity]))
+    const instances = sortActivitiesByTime(
+      originals.map((activity) => activityForDate(activity, date)),
+    )
     const now = Date.now()
     await db.activities.bulkPut(
-      activities.map((activity, index) => ({ ...activity, sortOrder: index, dirty: true, updatedAt: now })),
+      instances.map((instance, index) => {
+        const original = byId.get(instance.id)
+        if (!original) return instance
+        return { ...original, sortOrder: index, dirty: true, updatedAt: now }
+      }),
     )
   })
   emitLocalChange()

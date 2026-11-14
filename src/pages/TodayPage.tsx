@@ -18,6 +18,7 @@ import type { Activity, Trip } from '@/types'
 import { activityMeta } from '@/lib/activityMeta'
 import {
   activityDateRangeLabel,
+  activityForDate,
   activityScheduleLabel,
   activitySpansMultipleDays,
   dateKey,
@@ -76,7 +77,10 @@ export function TodayPage() {
   const horizon = dateKey(addDays(parseISO(today), 14))
 
   const activities = useMemo(
-    () => allActivities.filter((activity) => occursOn(activity, today)),
+    () =>
+      allActivities
+        .filter((activity) => occursOn(activity, today))
+        .map((activity) => activityForDate(activity, today)),
     [allActivities, today],
   )
   const sorted = useMemo(() => sortActivities(activities), [activities])
@@ -86,7 +90,15 @@ export function TodayPage() {
   const completed = sorted.filter((activity) => activity.completed).length
   const allDone = sorted.length > 0 && completed === sorted.length
 
-  const currentTrip = trips.find((trip) => today >= trip.startDate && today <= trip.endDate)
+  const currentTrips = useMemo(
+    () =>
+      trips
+        .filter((trip) => today >= trip.startDate && today <= trip.endDate)
+        .sort(
+          (a, b) => a.startDate.localeCompare(b.startDate) || a.name.localeCompare(b.name),
+        ),
+    [trips, today],
+  )
   const nextTrip = useMemo(
     () =>
       trips
@@ -99,7 +111,11 @@ export function TodayPage() {
     return eachDayKey(tomorrow, horizon)
       .map((date) => ({
         date,
-        items: sortActivities(allActivities.filter((activity) => occursOn(activity, date))),
+        items: sortActivities(
+          allActivities
+            .filter((activity) => occursOn(activity, date))
+            .map((activity) => activityForDate(activity, date)),
+        ),
       }))
       .filter((day) => day.items.length > 0)
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -136,32 +152,37 @@ export function TodayPage() {
         }
       />
 
-      {currentTrip ? (
-        <Link
-          to={`/trips/${currentTrip.id}`}
-          className="mb-4 flex items-center gap-3 rounded-2xl border p-2.5 pr-3.5 transition hover:bg-fg/[0.05]"
-          style={{
-            borderColor: hexAlpha(currentTrip.color, 0.2),
-            background: `linear-gradient(100deg, ${hexAlpha(currentTrip.color, 0.12)}, var(--color-sheen))`,
-          }}
-        >
-          <span
-            className="grid h-10 w-10 place-items-center rounded-xl text-xl"
-            style={{ backgroundColor: hexAlpha(currentTrip.color, 0.18) }}
-          >
-            {currentTrip.emoji}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[9px] font-extrabold uppercase tracking-[0.18em] text-muted">
-              On the road
-            </span>
-            <span className="block truncate text-sm font-extrabold text-fg">
-              {currentTrip.name}
-              <span className="font-bold text-muted"> · {tripCountdownLabel(currentTrip.startDate, currentTrip.endDate, today)}</span>
-            </span>
-          </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
-        </Link>
+      {currentTrips.length > 0 ? (
+        <div className="mb-4 space-y-2.5">
+          {currentTrips.map((trip) => (
+            <Link
+              key={trip.id}
+              to={`/trips/${trip.id}`}
+              className="flex items-center gap-3 rounded-2xl border p-2.5 pr-3.5 transition hover:bg-fg/[0.05]"
+              style={{
+                borderColor: hexAlpha(trip.color, 0.2),
+                background: `linear-gradient(100deg, ${hexAlpha(trip.color, 0.12)}, var(--color-sheen))`,
+              }}
+            >
+              <span
+                className="grid h-10 w-10 place-items-center rounded-xl text-xl"
+                style={{ backgroundColor: hexAlpha(trip.color, 0.18) }}
+              >
+                {trip.emoji}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[9px] font-extrabold uppercase tracking-[0.18em] text-muted">
+                  On the road
+                </span>
+                <span className="block truncate text-sm font-extrabold text-fg">
+                  {trip.name}
+                  <span className="font-bold text-muted"> · {tripCountdownLabel(trip.startDate, trip.endDate, today)}</span>
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+            </Link>
+          ))}
+        </div>
       ) : nextTrip ? (
         <Link
           to={`/trips/${nextTrip.id}`}

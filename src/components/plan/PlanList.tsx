@@ -36,7 +36,12 @@ export function PlanList({
   const { openDetail } = useActivityViews()
   const { toast } = useToast()
   const sorted = useMemo(() => sortActivities(activities), [activities])
-  const signature = activities.map((activity) => `${activity.id}:${activity.sortOrder}:${activity.updatedAt}`).join('|')
+  const signature = activities
+    .map(
+      (activity) =>
+        `${activity.id}:${activity.sortOrder}:${activity.updatedAt}:${activity.startTime ?? ''}:${activity.endTime ?? ''}:${activity.timeSlot ?? ''}`,
+    )
+    .join('|')
   const [items, setItems] = useState<Activity[]>(sorted)
   const ids = activities.map((activity) => activity.id)
   const idsKey = [...ids].sort().join('|')

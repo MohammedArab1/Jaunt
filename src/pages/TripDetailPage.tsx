@@ -19,6 +19,7 @@ import { db } from '@/db'
 import type { Activity } from '@/types'
 import {
   activityEndDate,
+  activityForDate,
   dateRangeLabel,
   eachDayKey,
   formatDay,
@@ -84,7 +85,11 @@ export function TripDetailPage() {
 
     return eachDayKey(start, end).map((date) => ({
       date,
-      activities: sortActivities(activities.filter((activity) => occursOn(activity, date))),
+      activities: sortActivities(
+        activities
+          .filter((activity) => occursOn(activity, date))
+          .map((activity) => activityForDate(activity, date)),
+      ),
     }))
   }, [trip, activities])
 

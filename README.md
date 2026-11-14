@@ -15,11 +15,11 @@ Built to live on a phone home screen.
 
 ## Features
 
-- **Today, automatically** — the dashboard opens on the current day with an “up next” card, countdown, progress, and every plan.
+- **Today, automatically** — the dashboard opens on the current day with an “up next” card, countdown, progress, every plan, and every trip that is active today.
 - **Accounts** — plain email + password registration and sign-in. Sessions are HTTP-only cookies; passwords are hashed.
 - **Cross-device sync** — account data is stored in PostgreSQL per user and pulled into each device. Works alongside an offline-first browser cache.
 - **Offline-first** — fresh plans and edits are saved immediately in IndexedDB even when the network is down. They sync automatically when you reconnect.
-- **Multi-day trips** — name a trip, pick the dates, choose a color and emoji, then build it out day by day.
+- **Multi-day trips** — name a trip, pick the dates, choose a color and emoji, then build it out day by day. Multi-day plans show their start time on the first day, their end time on the last day, and appear as any-time in between. Day-part timing applies only to the first instance.
 - **Multi-city destinations** — search live city suggestions through a server-side Open-Meteo proxy, pick several cities, or type a custom destination that isn’t listed. Suggestions need a connection; typed cities always work.
 - **Rich plans** — name, date, start/end time, location, type, notes, confirmation number, link, and multiple photo/PDF tickets. Plans can use a specific time, a day-part (**Early morning**, **Morning**, **Afternoon**, or **Evening**), or no time.
 - **Time-first ordering** — timed and day-part plans interleave chronologically by default. Drag a plan to create a custom order; a **Custom order** chip appears and **Sort by time** returns to chronological order. Editing a time, day-part, or date automatically returns the affected day to time order.
@@ -365,7 +365,7 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-Covers: offline onboarding, local profiles, plan creation, drag/custom ordering, automatic time reordering, Early morning/Morning/Afternoon/Evening day-parts, specific-time and day-part interleaving, completion persistence, offline reload, trips, multi-city destinations, guest backups/restore, multi-day plans, empty time fields, light mode persistence, global search across trips/plans/places/confirmations/notes, and the sign-in gate with “Continue offline.”
+Covers: offline onboarding, local profiles, plan creation, drag/custom ordering, automatic time reordering, Early morning/Morning/Afternoon/Evening day-parts, specific-time and day-part interleaving, multiple active trips on the dashboard, multi-day plan instance timing, completion persistence, offline reload, trips, multi-city destinations, guest backups/restore, empty time fields, light mode persistence, global search across trips/plans/places/confirmations/notes, and the sign-in gate with “Continue offline.”
 
 ### Account / full-stack suite
 

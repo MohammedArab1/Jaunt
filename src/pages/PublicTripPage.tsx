@@ -15,6 +15,7 @@ import { activityMeta } from '@/lib/activityMeta'
 import {
   activityDateRangeLabel,
   activityEndDate,
+  activityForDate,
   activityScheduleLabel,
   activitySpansMultipleDays,
   activityTimeRank,
@@ -94,6 +95,7 @@ export function PublicTripPage({ token }: PublicTripPageProps) {
       date,
       activities: activities
         .filter((activity) => activity.date <= date && activityEndDate(activity) >= date)
+        .map((activity) => activityForDate(activity, date))
         .sort(
           (a, b) =>
             activityTimeRank(a) - activityTimeRank(b) ||

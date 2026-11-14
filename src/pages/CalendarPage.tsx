@@ -22,6 +22,7 @@ import { db } from '@/db'
 import type { Activity, Trip } from '@/types'
 import {
   activityEndDate,
+  activityForDate,
   dateKey,
   eachDayKey,
   formatDay,
@@ -105,7 +106,12 @@ export function CalendarPage() {
   }, [allActivities, rangeStart, rangeEnd])
 
   const selectedSorted = useMemo(
-    () => sortActivities(allActivities.filter((activity) => occursOn(activity, selected))),
+    () =>
+      sortActivities(
+        allActivities
+          .filter((activity) => occursOn(activity, selected))
+          .map((activity) => activityForDate(activity, selected)),
+      ),
     [allActivities, selected],
   )
   const selectedTimeOrdered = useMemo(() => isTimeOrdered(selectedSorted), [selectedSorted])
