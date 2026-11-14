@@ -51,7 +51,7 @@ const activitySchema = z.object({
   endDate: dateString.nullish(),
   startTime: timeString,
   endTime: timeString,
-  timeSlot: z.enum(['morning', 'afternoon', 'evening']).nullish(),
+  timeSlot: z.enum(['early-morning', 'morning', 'afternoon', 'evening']).nullish(),
   location: z.string().max(300).nullish(),
   type: z.enum(['flight', 'lodging', 'food', 'experience', 'transport', 'event', 'shopping', 'other']),
   notes: z.string().max(10_000).nullish(),

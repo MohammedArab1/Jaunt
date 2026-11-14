@@ -25,6 +25,7 @@ import {
   dateKey,
   eachDayKey,
   formatDay,
+  isTimeOrdered,
   occursOn,
   overlapsRange,
   sortActivities,
@@ -107,6 +108,7 @@ export function CalendarPage() {
     () => sortActivities(allActivities.filter((activity) => occursOn(activity, selected))),
     [allActivities, selected],
   )
+  const selectedTimeOrdered = useMemo(() => isTimeOrdered(selectedSorted), [selectedSorted])
   const tripsById = useMemo(() => new Map(trips.map((trip) => [trip.id, trip])), [trips])
   const selectedTrips = trips.filter((trip) => selected >= trip.startDate && selected <= trip.endDate)
   const selectedCompleted = selectedSorted.filter((activity) => activity.completed).length
@@ -239,6 +241,11 @@ export function CalendarPage() {
           </div>
 
           <div className="flex items-center gap-1">
+            {!selectedTimeOrdered ? (
+              <span className="rounded-full border border-sun/20 bg-sun/[0.08] px-2 py-1 text-[8px] font-extrabold uppercase tracking-[0.08em] text-sun">
+                Custom order
+              </span>
+            ) : null}
             {selectedSorted.length > 1 ? (
               <button
                 type="button"

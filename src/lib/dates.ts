@@ -44,12 +44,50 @@ export function timeToMinutes(time: string): number {
   return hours * 60 + minutes
 }
 
-export const TIME_SLOT_ORDER: TimeSlot[] = ['morning', 'afternoon', 'evening']
+export interface TimeSlotMeta {
+  label: string
+  rangeLabel: string
+  start: number
+  end: number
+  sortRank: number
+}
 
-export const TIME_SLOT_META: Record<TimeSlot, { label: string; rank: number; end: number }> = {
-  morning: { label: 'Morning', rank: 9 * 60, end: 12 * 60 },
-  afternoon: { label: 'Afternoon', rank: 14 * 60, end: 17 * 60 },
-  evening: { label: 'Evening', rank: 19 * 60, end: 24 * 60 },
+export const TIME_SLOT_ORDER: TimeSlot[] = [
+  'early-morning',
+  'morning',
+  'afternoon',
+  'evening',
+]
+
+export const TIME_SLOT_META: Record<TimeSlot, TimeSlotMeta> = {
+  'early-morning': {
+    label: 'Early morning',
+    rangeLabel: '12:00–4:59 AM',
+    start: 0,
+    end: 4 * 60 + 59,
+    sortRank: 0,
+  },
+  morning: {
+    label: 'Morning',
+    rangeLabel: '5:00 AM–12:00 PM',
+    start: 5 * 60,
+    end: 12 * 60,
+    sortRank: 5 * 60,
+  },
+  afternoon: {
+    label: 'Afternoon',
+    rangeLabel: '12:01–6:00 PM',
+    start: 12 * 60 + 1,
+    end: 18 * 60,
+    sortRank: 12 * 60 + 1,
+  },
+  evening: {
+    label: 'Evening',
+    rangeLabel: '6:01–11:59 PM',
+    start: 18 * 60 + 1,
+    end: 24 * 60 - 1,
+    sortRank: 18 * 60 + 1,
+  },
 }
 
 export function formatTimeSlot(slot: TimeSlot): string {
@@ -104,8 +142,17 @@ export function activitySpanPosition(
 
 export function activityTimeRank(activity: Pick<ActivityTiming, 'startTime' | 'timeSlot'>): number {
   if (activity.startTime) return timeToMinutes(activity.startTime)
-  if (activity.timeSlot) return TIME_SLOT_META[activity.timeSlot]?.rank ?? Number.MAX_SAFE_INTEGER
+  if (activity.timeSlot) return TIME_SLOT_META[activity.timeSlot]?.sortRank ?? Number.MAX_SAFE_INTEGER
   return Number.MAX_SAFE_INTEGER
+}
+
+export function isTimeOrdered(activities: Activity[]): boolean {
+  for (let index = 1; index < activities.length; index += 1) {
+    if (activityTimeRank(activities[index - 1]) > activityTimeRank(activities[index])) {
+      return false
+    }
+  }
+  return true
 }
 
 export function compareActivitiesByTime(a: Activity, b: Activity): number {
@@ -223,10 +270,10 @@ export function getUpNext(activities: Activity[], now = new Date()): UpNext | nu
     if (activity.timeSlot) {
       const slot = TIME_SLOT_META[activity.timeSlot]
       if (!slot) continue
-      if (nowMinutes < slot.end && nowMinutes >= slot.rank) {
+      if (nowMinutes >= slot.start && nowMinutes <= slot.end) {
         candidates.push({ activity, rank: nowMinutes, phase: 'slot' })
-      } else if (nowMinutes < slot.rank) {
-        candidates.push({ activity, rank: slot.rank, phase: 'slot' })
+      } else if (nowMinutes < slot.start) {
+        candidates.push({ activity, rank: slot.start, phase: 'slot' })
       }
     }
   }
@@ -241,7 +288,9 @@ export function getUpNext(activities: Activity[], now = new Date()): UpNext | nu
 }
 
 export function phaseLabel(upNext: UpNext, now = new Date()): string {
-  if (upNext.activity.timeSlot) return formatTimeSlot(upNext.activity.timeSlot)
+  if (upNext.phase === 'slot' && upNext.activity.timeSlot) {
+    return formatTimeSlot(upNext.activity.timeSlot)
+  }
   if (upNext.phase === 'now') return 'Happening now'
   if (upNext.phase === 'anytime') return 'Any time today'
   if (upNext.phase === 'later') return 'Still on the list'

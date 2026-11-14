@@ -1,4 +1,4 @@
-export type TimeSlot = 'morning' | 'afternoon' | 'evening'
+export type TimeSlot = 'early-morning' | 'morning' | 'afternoon' | 'evening'
 
 export type ActivityType =
   | 'flight'

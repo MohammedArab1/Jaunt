@@ -24,6 +24,7 @@ import {
   eachDayKey,
   formatDay,
   getUpNext,
+  isTimeOrdered,
   occursOn,
   phaseLabel,
   sortActivities,
@@ -79,6 +80,7 @@ export function TodayPage() {
     [allActivities, today],
   )
   const sorted = useMemo(() => sortActivities(activities), [activities])
+  const timeOrdered = useMemo(() => isTimeOrdered(sorted), [sorted])
   const tripsById = useMemo(() => new Map(trips.map((trip) => [trip.id, trip])), [trips])
   const upNext = useMemo(() => getUpNext(sorted, now), [sorted, now])
   const completed = sorted.filter((activity) => activity.completed).length
@@ -294,6 +296,11 @@ export function TodayPage() {
               </p>
             </div>
             <div className="flex items-center gap-1.5">
+              {!timeOrdered ? (
+                <span className="rounded-full border border-sun/20 bg-sun/[0.08] px-2 py-1 text-[8px] font-extrabold uppercase tracking-[0.08em] text-sun">
+                  Custom order
+                </span>
+              ) : null}
               <span className="rounded-full border border-fg/10 bg-fg/[0.04] px-2.5 py-1 text-[10px] font-extrabold text-muted">
                 {completed}/{sorted.length} done
               </span>

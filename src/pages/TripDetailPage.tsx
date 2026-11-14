@@ -22,6 +22,7 @@ import {
   dateRangeLabel,
   eachDayKey,
   formatDay,
+  isTimeOrdered,
   occursOn,
   sortActivities,
   tripCountdownLabel,
@@ -325,6 +326,7 @@ export function TripDetailPage() {
       <div className="mt-4 space-y-5">
         {dayGroups.map(({ date, activities: dayActivities }, index) => {
           const dayDone = dayActivities.filter((activity) => activity.completed).length
+          const dayTimeOrdered = isTimeOrdered(dayActivities)
           return (
             <section key={date}>
               <div className="mb-2 flex items-center justify-between gap-3">
@@ -343,6 +345,11 @@ export function TripDetailPage() {
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
+                  {!dayTimeOrdered ? (
+                    <span className="rounded-full border border-sun/20 bg-sun/[0.08] px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.06em] text-sun">
+                      Custom order
+                    </span>
+                  ) : null}
                   {dayActivities.length > 0 ? (
                     <span className="rounded-full border border-fg/[0.08] bg-fg/[0.03] px-2 py-0.5 text-[9px] font-extrabold text-muted">
                       {dayDone}/{dayActivities.length}

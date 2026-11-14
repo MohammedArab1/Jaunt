@@ -1,7 +1,13 @@
 import { db } from '@/db'
 import type { Activity, Attachment, Profile, Trip } from '@/types'
 import { newId } from './id'
-import { activityTimeRank, occursOn, sortActivitiesByTime } from './dates'
+import {
+  activityEndDate,
+  activityTimeRank,
+  eachDayKey,
+  occursOn,
+  sortActivitiesByTime,
+} from './dates'
 import { emitLocalChange } from './syncBus'
 
 function insertionIndex(siblings: Activity[], activity: Pick<Activity, 'startTime' | 'timeSlot'>): number {
@@ -10,6 +16,14 @@ function insertionIndex(siblings: Activity[], activity: Pick<Activity, 'startTim
     if (activityTimeRank(siblings[index]) > target) return index
   }
   return siblings.length
+}
+
+function activityDays(activity: Pick<Activity, 'date' | 'endDate'>): string[] {
+  return eachDayKey(activity.date, activityEndDate(activity))
+}
+
+function hasTiming(activity: Pick<Activity, 'startTime' | 'timeSlot'>): boolean {
+  return Boolean(activity.startTime || activity.timeSlot)
 }
 
 async function renumberDay(profileId: string, date: string): Promise<void> {
@@ -51,36 +65,67 @@ export async function createActivity(activity: Activity): Promise<void> {
       siblings.map((item, order) => ({ ...item, sortOrder: order, dirty: true, updatedAt: now })),
     )
   })
+
+  if (hasTiming(activity)) {
+    for (const day of activityDays(activity)) {
+      await sortDayByTime(activity.profileId, day)
+    }
+  }
   emitLocalChange()
 }
 
 export async function updateActivity(activity: Activity): Promise<void> {
+  const affectedDays = new Set<string>()
+  let shouldReorder = false
+
   await db.transaction('rw', db.activities, async () => {
     const existing = await db.activities.get(activity.id)
     if (!existing) return
 
     const updated = { ...activity, dirty: true, updatedAt: Date.now() }
+    const datesChanged =
+      existing.date !== activity.date || (existing.endDate ?? '') !== (activity.endDate ?? '')
+    const timingChanged =
+      (existing.startTime ?? '') !== (activity.startTime ?? '') ||
+      (existing.endTime ?? '') !== (activity.endTime ?? '') ||
+      (existing.timeSlot ?? '') !== (activity.timeSlot ?? '')
 
     if (existing.date === activity.date) {
       await db.activities.put(updated)
-      return
+    } else {
+      await db.activities.delete(activity.id)
+      await renumberDay(activity.profileId, existing.date)
+
+      const siblings = await db.activities
+        .where('[profileId+date]')
+        .equals([activity.profileId, activity.date])
+        .toArray()
+      siblings.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt)
+
+      const index = insertionIndex(siblings, activity)
+      siblings.splice(index, 0, updated)
+      await db.activities.bulkPut(
+        siblings.map((item, order) => ({
+          ...item,
+          sortOrder: order,
+          dirty: true,
+          updatedAt: updated.updatedAt,
+        })),
+      )
     }
 
-    await db.activities.delete(activity.id)
-    await renumberDay(activity.profileId, existing.date)
-
-    const siblings = await db.activities
-      .where('[profileId+date]')
-      .equals([activity.profileId, activity.date])
-      .toArray()
-    siblings.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt)
-
-    const index = insertionIndex(siblings, activity)
-    siblings.splice(index, 0, updated)
-    await db.activities.bulkPut(
-      siblings.map((item, order) => ({ ...item, sortOrder: order, dirty: true, updatedAt: updated.updatedAt })),
-    )
+    if (datesChanged || timingChanged) {
+      shouldReorder = true
+      for (const day of activityDays(existing)) affectedDays.add(day)
+      for (const day of activityDays(activity)) affectedDays.add(day)
+    }
   })
+
+  if (shouldReorder) {
+    for (const day of affectedDays) {
+      await sortDayByTime(activity.profileId, day)
+    }
+  }
   emitLocalChange()
 }
 

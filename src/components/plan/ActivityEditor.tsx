@@ -10,11 +10,12 @@ import {
   Link2,
   Loader2,
   MapPin,
-  Moon,
+  MoonStar,
   Paperclip,
   StickyNote,
   Sun,
   Sunrise,
+  Sunset,
   Ticket,
   X,
 } from 'lucide-react'
@@ -450,17 +451,24 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
               </p>
             </div>
           ) : timing === 'slot' ? (
-            <div className="mt-2.5 grid grid-cols-3 gap-2">
+            <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {TIME_SLOT_ORDER.map((slot) => {
                 const meta = TIME_SLOT_META[slot]
-                const Icon = slot === 'morning' ? Sunrise : slot === 'afternoon' ? Sun : Moon
+                const Icon =
+                  slot === 'early-morning'
+                    ? MoonStar
+                    : slot === 'morning'
+                      ? Sunrise
+                      : slot === 'afternoon'
+                        ? Sun
+                        : Sunset
                 return (
                   <button
                     key={slot}
                     type="button"
                     onClick={() => setTimeSlot(slot)}
                     className={cn(
-                      'flex flex-col items-center gap-1 rounded-2xl border px-1 py-3 text-[9px] font-extrabold uppercase tracking-[0.06em] transition',
+                      'flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2.5 text-[9px] font-extrabold uppercase tracking-[0.06em] transition',
                       timeSlot === slot
                         ? 'border-coral/50 bg-coral/10 text-coral'
                         : 'border-fg/[0.07] bg-fg/[0.03] text-muted hover:border-fg/15 hover:text-fg',
@@ -468,7 +476,15 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
                     aria-pressed={timeSlot === slot}
                   >
                     <Icon className="h-4 w-4" />
-                    {meta.label}
+                    <span>{meta.label}</span>
+                    <span
+                      className={cn(
+                        'text-[8px] font-bold normal-case tracking-normal',
+                        timeSlot === slot ? 'text-coral/70' : 'text-muted/60',
+                      )}
+                    >
+                      {meta.rangeLabel}
+                    </span>
                   </button>
                 )
               })}

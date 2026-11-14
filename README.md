@@ -21,9 +21,10 @@ Built to live on a phone home screen.
 - **Offline-first** — fresh plans and edits are saved immediately in IndexedDB even when the network is down. They sync automatically when you reconnect.
 - **Multi-day trips** — name a trip, pick the dates, choose a color and emoji, then build it out day by day.
 - **Multi-city destinations** — search live city suggestions through a server-side Open-Meteo proxy, pick several cities, or type a custom destination that isn’t listed. Suggestions need a connection; typed cities always work.
-- **Rich plans** — name, date, start/end time, location, type, notes, confirmation number, link, and multiple photo/PDF tickets.
+- **Rich plans** — name, date, start/end time, location, type, notes, confirmation number, link, and multiple photo/PDF tickets. Plans can use a specific time, a day-part (**Early morning**, **Morning**, **Afternoon**, or **Evening**), or no time.
+- **Time-first ordering** — timed and day-part plans interleave chronologically by default. Drag a plan to create a custom order; a **Custom order** chip appears and **Sort by time** returns to chronological order. Editing a time, day-part, or date automatically returns the affected day to time order.
 - **Cross things off** — tap the circle; completed plans fade and progress updates.
-- **Move things around** — drag the grip handle to reorder, sort by start time, or edit a plan’s date to move it.
+- **Move things around** — drag the grip handle for a custom order, use **Sort by time** to restore chronological order, or edit a plan’s dates to move it.
 - **Calendar view** — a month grid with color-coded activity dots; tap any day to see and edit its agenda.
 - **Tickets & photos** — attach up to 12 files per plan. Photos are compressed on-device; PDFs are kept as-is. Open or download them later.
 - **Public read-only links** — share a trip's itinerary with anyone, no account required. Tickets, confirmations, links, and notes stay private; revoke the link at any time.
@@ -364,7 +365,7 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-Covers: offline onboarding, local profiles, plan creation, drag reorder, completion persistence, offline reload, trips, multi-city destinations, guest backups/restore, multi-day plans, day-part timing, empty time fields, light mode persistence, global search across trips/plans/places/confirmations/notes, and the sign-in gate with “Continue offline.”
+Covers: offline onboarding, local profiles, plan creation, drag/custom ordering, automatic time reordering, Early morning/Morning/Afternoon/Evening day-parts, specific-time and day-part interleaving, completion persistence, offline reload, trips, multi-city destinations, guest backups/restore, multi-day plans, empty time fields, light mode persistence, global search across trips/plans/places/confirmations/notes, and the sign-in gate with “Continue offline.”
 
 ### Account / full-stack suite
 

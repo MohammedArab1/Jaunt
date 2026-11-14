@@ -48,6 +48,22 @@ async function addLoosePlan(page: Page, name: string, startTime?: string) {
   await expect(page.getByRole('button', { name: `View ${name}` })).toBeVisible()
 }
 
+async function addTimedPlan(page: Page, name: string, startTime: string, endTime?: string) {
+  await page.getByLabel('Add a plan', { exact: true }).click()
+  await page.getByLabel('What is it?').fill(name)
+  await page.getByRole('button', { name: 'Time', exact: true }).click()
+  await page.getByLabel('Start time', { exact: true }).fill(startTime)
+  if (endTime) await page.getByLabel('End time', { exact: true }).fill(endTime)
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: `View ${name}` })).toBeVisible()
+}
+
+function planNames(page: Page) {
+  return page
+    .getByRole('button', { name: /^View / })
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')?.replace('View ', '')))
+}
+
 test('plan a day, reorder it, cross things off, and reload offline', async ({ page, context }) => {
   await onboard(page)
   await addLoosePlan(page, 'Late plan', '18:00')
@@ -93,6 +109,53 @@ test('plan a day, reorder it, cross things off, and reload offline', async ({ pa
   await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(page.getByRole('button', { name: 'View Late plan' })).toBeVisible()
   await context.setOffline(false)
+})
+
+test('keeps time order unless the day is manually reordered', async ({ page }) => {
+  await onboard(page, 'Order')
+
+  await addTimedPlan(page, 'Plan one', '12:30', '17:30')
+  await addTimedPlan(page, 'Plan two', '18:00', '21:00')
+  await expect.poll(() => planNames(page)).toEqual(['Plan one', 'Plan two'])
+
+  const handle = page.getByRole('button', { name: 'Reorder Plan two' })
+  await handle.focus()
+  await page.keyboard.press('Space')
+  await page.waitForTimeout(200)
+  await page.keyboard.press('ArrowUp')
+  await page.waitForTimeout(250)
+  await page.keyboard.press('Space')
+
+  await expect.poll(() => planNames(page)).toEqual(['Plan two', 'Plan one'])
+  await expect(page.getByText('Custom order')).toBeVisible()
+
+  await page.getByRole('button', { name: 'View Plan one' }).click()
+  await page.getByRole('button', { name: 'Edit' }).click()
+  await page.getByLabel('Start time', { exact: true }).fill('09:00')
+  await page.getByLabel('End time', { exact: true }).fill('10:00')
+  await page.getByRole('button', { name: 'Save changes' }).click()
+
+  await expect.poll(() => planNames(page)).toEqual(['Plan one', 'Plan two'])
+  await expect(page.getByText('Custom order')).toHaveCount(0)
+})
+
+test('interleaves early morning and specific-time plans in time order', async ({ page }) => {
+  await onboard(page, 'Buckets')
+
+  const addSlotPlan = async (name: string, slot: RegExp) => {
+    await page.getByLabel('Add a plan', { exact: true }).click()
+    await page.getByLabel('What is it?').fill(name)
+    await page.getByRole('button', { name: 'Part of day' }).click()
+    await page.getByRole('button', { name: slot }).click()
+    await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+    await expect(page.getByRole('button', { name: `View ${name}` })).toBeVisible()
+  }
+
+  await addSlotPlan('Red-eye', /^Early morning/)
+  await addSlotPlan('Breakfast', /^Morning/)
+  await addTimedPlan(page, '3am taxi', '03:00')
+
+  await expect.poll(() => planNames(page)).toEqual(['Red-eye', '3am taxi', 'Breakfast'])
 })
 
 test('builds a trip, keeps its plans when deleted, and restores a backup', async ({ page }) => {
