@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronRight, Clock, Search, X } from 'lucide-react'
+import { ChevronRight, Clock, Luggage, Search, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { db } from '@/db'
-import type { Activity, Trip } from '@/types'
+import type { Activity, PackingItem, Trip } from '@/types'
 import { activityMeta } from '@/lib/activityMeta'
 import { activityScheduleLabel, compactDateRange, formatDay } from '@/lib/dates'
+import { packingCategoryLabel } from '@/lib/packing'
 import { useProfile } from '@/context/ProfileContext'
 import { useActivityViews } from '@/context/ActivityViews'
 import { cssVars, hexAlpha, pluralize } from '@/lib/utils'
@@ -59,6 +60,15 @@ export function SearchPage() {
     [] as Activity[],
   )
 
+  const packingItems = useLiveQuery(
+    () =>
+      profileId
+        ? db.packingItems.where('profileId').equals(profileId).toArray()
+        : Promise.resolve([] as PackingItem[]),
+    [profileId],
+    [] as PackingItem[],
+  )
+
   const trimmed = query.trim()
   const tokens = useMemo(
     () => (trimmed.length >= 2 ? normalize(trimmed).split(/\s+/).filter(Boolean) : []),
@@ -68,7 +78,13 @@ export function SearchPage() {
   const tripsById = useMemo(() => new Map(trips.map((trip) => [trip.id, trip])), [trips])
 
   const results = useMemo(() => {
-    if (tokens.length === 0) return { trips: [] as Trip[], plans: [] as Activity[] }
+    if (tokens.length === 0) {
+      return {
+        trips: [] as Trip[],
+        plans: [] as Activity[],
+        packing: [] as PackingItem[],
+      }
+    }
 
     const tripMatches = trips
       .filter((trip) => matches([trip.name, trip.destination, trip.notes], tokens))
@@ -89,19 +105,26 @@ export function SearchPage() {
       )
       .sort((a, b) => b.date.localeCompare(a.date) || a.sortOrder - b.sortOrder)
 
-    return { trips: tripMatches, plans: planMatches }
-  }, [activities, tokens, trips])
+    const packingMatches = packingItems
+      .filter((item) =>
+        tripsById.has(item.tripId) &&
+        matches([item.name, packingCategoryLabel(item.category)], tokens),
+      )
+      .sort((a, b) => a.tripId.localeCompare(b.tripId) || a.sortOrder - b.sortOrder)
+
+    return { trips: tripMatches, plans: planMatches, packing: packingMatches }
+  }, [activities, packingItems, tokens, tripsById, trips])
 
   if (!profile) return null
 
-  const total = results.trips.length + results.plans.length
+  const total = results.trips.length + results.plans.length + results.packing.length
 
   return (
     <Page>
       <PageHeader
         eyebrow="Find anything"
         title="Search"
-        description="Trips, plans, places, confirmation numbers, and notes — all in one place."
+        description="Trips, plans, packing lists, places, confirmation numbers, and notes — all in one place."
         showSearch={false}
       />
 
@@ -113,7 +136,7 @@ export function SearchPage() {
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search trips, plans, places, confirmations, notes…"
+          placeholder="Search trips, plans, packing, places, confirmations…"
           className="field h-12 pl-11 pr-11 text-base"
           enterKeyHint="search"
           spellCheck={false}
@@ -139,8 +162,8 @@ export function SearchPage() {
             Find anything in your plans.
           </h2>
           <p className="mx-auto mt-1.5 max-w-sm text-xs font-medium leading-relaxed text-muted">
-            Try a city, a restaurant, a confirmation code, or a phrase from a note. Everything you
-            can see in Jaunt is searchable, including shared trips.
+            Try a city, a restaurant, a confirmation code, a packing item, or a phrase from a note.
+            Everything you can see in Jaunt is searchable, including shared trips.
           </p>
         </div>
       ) : total === 0 ? (
@@ -148,7 +171,7 @@ export function SearchPage() {
           <EmptyState
             icon={<Search className="h-6 w-6" />}
             title="Nothing matched."
-            description={`No trips or plans include “${trimmed}”. Try a shorter word or a different spelling.`}
+            description={`No trips, plans, or packing items include “${trimmed}”. Try a shorter word or a different spelling.`}
           />
         </div>
       ) : (
@@ -196,6 +219,55 @@ export function SearchPage() {
                             {noteSnippet}
                           </span>
                         ) : null}
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+                    </Link>
+                  )
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {results.packing.length > 0 ? (
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="eyebrow">Packing</p>
+                <span className="text-[10px] font-extrabold text-muted/50">
+                  {results.packing.length}
+                </span>
+              </div>
+              <div className="space-y-2.5">
+                {results.packing.map((item) => {
+                  const trip = tripsById.get(item.tripId)
+                  const owner = trip?.travelers?.find((traveler) => traveler.id === item.ownerUserId)
+                  const ownerLabel =
+                    item.ownerUserId === profile.id
+                      ? 'Your list'
+                      : `${owner?.displayName ?? 'Traveler'}'s list`
+                  return (
+                    <Link
+                      key={item.id}
+                      to={`/trips/${item.tripId}/packing?traveler=${encodeURIComponent(item.ownerUserId)}`}
+                      aria-label={`Open packing item ${item.name}`}
+                      className="surface flex items-center gap-3 p-3.5 transition hover:bg-fg/[0.05]"
+                    >
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] text-muted">
+                        <Luggage className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="break-words font-display text-base font-extrabold leading-tight tracking-[-0.02em] text-fg">
+                            {item.name}
+                          </span>
+                          {item.packed ? (
+                            <span className="chip shrink-0 text-[9px] text-mint">Packed</span>
+                          ) : null}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11px] font-semibold text-muted">
+                          {trip ? `${trip.emoji} ${trip.name}` : 'Trip'} · {ownerLabel} ·{' '}
+                          {packingCategoryLabel(item.category)}
+                          {item.quantity > 1 ? ` · ×${item.quantity}` : ''}
+                        </span>
                       </span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
                     </Link>

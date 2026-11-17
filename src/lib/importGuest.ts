@@ -6,6 +6,7 @@ import { emitLocalChange } from './syncBus'
 export interface ImportResult {
   trips: number
   activities: number
+  packingItems: number
   attachments: number
 }
 
@@ -17,7 +18,7 @@ export async function importGuestProfileIntoAccount(
 
   const result = await db.transaction(
     'rw',
-    [db.profiles, db.trips, db.activities, db.attachments, db.files],
+    [db.profiles, db.trips, db.activities, db.packingItems, db.attachments, db.files],
     async () => {
       const guest = await db.profiles.get(guestProfileId)
       const account = await db.profiles.get(accountUserId)
@@ -26,6 +27,7 @@ export async function importGuestProfileIntoAccount(
 
       const guestTrips = await db.trips.where('profileId').equals(guestProfileId).toArray()
       const guestActivities = await db.activities.where('profileId').equals(guestProfileId).toArray()
+      const guestPackingItems = await db.packingItems.where('profileId').equals(guestProfileId).toArray()
       const attachments = await db.attachments.where('profileId').equals(guestProfileId).toArray()
 
       const tripIdMap = new Map<string, string>()
@@ -59,6 +61,23 @@ export async function importGuestProfileIntoAccount(
         }
       })
 
+      const newPackingItems = guestPackingItems.flatMap((item) => {
+        const tripId = tripIdMap.get(item.tripId)
+        if (!tripId) return []
+        return [
+          {
+            ...item,
+            id: newId(),
+            profileId: accountUserId,
+            tripId,
+            ownerUserId: accountUserId,
+            createdAt: item.createdAt,
+            updatedAt: now,
+            dirty: true,
+          },
+        ]
+      })
+
       const newAttachments: Array<{ attachment: Attachment; blob: Blob }> = []
 
       for (const attachment of attachments) {
@@ -84,6 +103,7 @@ export async function importGuestProfileIntoAccount(
 
       if (newTrips.length) await db.trips.bulkPut(newTrips)
       if (newActivities.length) await db.activities.bulkPut(newActivities)
+      if (newPackingItems.length) await db.packingItems.bulkPut(newPackingItems)
 
       for (const item of newAttachments) {
         await db.attachments.put(item.attachment)
@@ -93,6 +113,7 @@ export async function importGuestProfileIntoAccount(
       return {
         trips: newTrips.length,
         activities: newActivities.length,
+        packingItems: newPackingItems.length,
         attachments: newAttachments.length,
       }
     },

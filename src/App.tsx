@@ -13,6 +13,7 @@ import { CalendarPage } from '@/pages/CalendarPage'
 import { SearchPage } from '@/pages/SearchPage'
 import { TripsPage } from '@/pages/TripsPage'
 import { TripDetailPage } from '@/pages/TripDetailPage'
+import { PackingListPage } from '@/pages/PackingListPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { PublicTripPage } from '@/pages/PublicTripPage'
 
@@ -26,6 +27,7 @@ function AppRoutes() {
           <Route path="search" element={<SearchPage />} />
           <Route path="trips" element={<TripsPage />} />
           <Route path="trips/:tripId" element={<TripDetailPage />} />
+          <Route path="trips/:tripId/packing" element={<PackingListPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

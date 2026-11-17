@@ -278,6 +278,60 @@ test('builds a trip, keeps its plans when deleted, and restores a backup', async
   await expect(page.getByRole('button', { name: 'View Trip plan' })).toBeVisible()
 })
 
+test('builds a packing list, checks items off, and keeps it after reload', async ({ page }) => {
+  await onboard(page, 'Packer')
+  await createTrip(page, 'Packing trip', localDayKey(2), localDayKey(4))
+
+  await page.getByRole('link', { name: 'Open packing list for Packing trip' }).click()
+  await expect(page.getByRole('heading', { name: 'Packing', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add essentials' }).click()
+  await expect(page.getByRole('button', { name: 'Mark Passport or ID as packed' })).toBeVisible()
+
+  await page.getByLabel('Packing item').fill('Camera')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Edit Camera' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Mark Camera as packed' }).click()
+  await expect(page.getByRole('button', { name: 'Mark Camera as not packed' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Mark Camera as not packed' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+
+  await page.getByRole('button', { name: 'Back to trip' }).click()
+  await expect(page.getByText('1 of 15 items packed')).toBeVisible()
+
+  const packingUrl = `${page.url()}/packing`
+  await page.getByRole('link', { name: 'More' }).click()
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: /Download backup/ }).click()
+  const download = await downloadPromise
+  const backupPath = test.info().outputPath('packing-backup.json')
+  await download.saveAs(backupPath)
+  const backup = JSON.parse(await readFile(backupPath, 'utf8'))
+  expect(backup.packingItems).toHaveLength(15)
+
+  await page.goto(packingUrl)
+  await page.getByLabel('Packing item').fill('Erased item')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Edit Erased item' })).toBeVisible()
+
+  await page.goto('/settings')
+  await page.locator('input[type="file"][accept*="json"]').setInputFiles(backupPath)
+  await page.getByRole('button', { name: 'Restore backup' }).click()
+  await expect(page.getByText(/Backup restored/)).toBeVisible()
+
+  await page.goto(packingUrl)
+  await expect(page.getByRole('button', { name: 'Edit Erased item' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Mark Camera as not packed' })).toBeVisible()
+})
+
 test('adds another local profile and switches between them', async ({ page }) => {
   await onboard(page, 'Mo')
   await addLoosePlan(page, 'Mo plan')
@@ -354,12 +408,22 @@ test('searches trips, plans, places, confirmations, and notes', async ({ page })
   await page.getByRole('button', { name: 'Create trip' }).click()
   await expect(page.getByRole('heading', { name: 'Kyoto escape' })).toBeVisible()
 
+  await page.getByRole('link', { name: 'Open packing list for Kyoto escape' }).click()
+  await page.getByRole('button', { name: 'Electronics', exact: true }).click()
+  await page.getByLabel('Packing item').fill('Pocket wifi')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Edit Pocket wifi' })).toBeVisible()
+  await page.getByRole('button', { name: 'Back to trip' }).click()
+
   await page.getByRole('link', { name: 'Search everything' }).click()
   const searchbox = page.getByRole('searchbox')
   await expect(searchbox).toBeVisible()
 
   await searchbox.fill('Kyoto')
   await expect(page.getByRole('link', { name: 'Open trip Kyoto escape' })).toBeVisible()
+
+  await searchbox.fill('Pocket wifi')
+  await expect(page.getByRole('link', { name: 'Open packing item Pocket wifi' })).toBeVisible()
 
   await searchbox.fill('Gion')
   await expect(page.getByRole('button', { name: 'Open plan Tea ceremony' })).toBeVisible()

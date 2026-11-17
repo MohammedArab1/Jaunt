@@ -4,8 +4,10 @@ import {
   ArrowDownWideNarrow,
   ArrowLeft,
   CalendarDays,
+  ChevronRight,
   ListChecks,
   Loader2,
+  Luggage,
   MapPin,
   Pencil,
   Plus,
@@ -16,7 +18,7 @@ import {
 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { db } from '@/db'
-import type { Activity } from '@/types'
+import type { Activity, PackingItem } from '@/types'
 import {
   activityEndDate,
   activityForDate,
@@ -67,6 +69,15 @@ export function TripDetailPage() {
         : Promise.resolve([] as Activity[]),
     [tripId],
     [],
+  )
+
+  const packingItems = useLiveQuery(
+    () =>
+      tripId
+        ? db.packingItems.where('tripId').equals(tripId).toArray()
+        : Promise.resolve([] as PackingItem[]),
+    [tripId],
+    [] as PackingItem[],
   )
 
   const [editOpen, setEditOpen] = useState(false)
@@ -136,6 +147,10 @@ export function TripDetailPage() {
   const total = activities.length
   const done = activities.filter((activity) => activity.completed).length
   const progress = total === 0 ? 0 : Math.round((done / total) * 100)
+  const myPackingItems = packingItems?.filter((item) => item.ownerUserId === profile.id) ?? []
+  const packingTotal = myPackingItems.length
+  const packingDone = myPackingItems.filter((item) => item.packed).length
+  const packingProgress = packingTotal === 0 ? 0 : Math.round((packingDone / packingTotal) * 100)
   const isPast = today > trip.endDate
   const status = tripCountdownLabel(trip.startDate, trip.endDate, today)
   const isAccount = mode === 'account'
@@ -318,6 +333,43 @@ export function TripDetailPage() {
         </div>
       </section>
 
+      <Link
+        to={`/trips/${trip.id}/packing`}
+        aria-label={`Open packing list for ${trip.name}`}
+        className="group mt-4 flex items-center gap-3.5 rounded-[26px] border border-fg/[0.09] bg-fg/[0.03] p-4 transition hover:border-fg/[0.16] hover:bg-fg/[0.055]"
+      >
+        <span
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-fg/10"
+          style={{ backgroundColor: hexAlpha(trip.color, 0.16), color: trip.color }}
+        >
+          <Luggage className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline justify-between gap-2">
+            <span className="font-display text-base font-extrabold tracking-[-0.02em] text-fg">
+              Your packing list
+            </span>
+            <span className="text-[10px] font-extrabold text-muted/60">
+              {packingTotal === 0 ? 'Empty' : `${packingDone}/${packingTotal}`}
+            </span>
+          </span>
+          <span className="mt-0.5 block text-[11px] font-semibold text-muted">
+            {packingTotal === 0
+              ? 'Start your checklist'
+              : `${packingDone} of ${pluralize(packingTotal, 'item')} packed`}
+          </span>
+          {packingTotal > 0 ? (
+            <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-fg/10">
+              <span
+                className="block h-full rounded-full transition-all duration-500"
+                style={{ width: `${packingProgress}%`, backgroundColor: trip.color }}
+              />
+            </span>
+          ) : null}
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-fg" />
+      </Link>
+
       <div className="mt-8 flex items-end justify-between">
         <div>
           <p className="eyebrow">The days</p>
@@ -461,7 +513,7 @@ export function TripDetailPage() {
       >
         <p className="text-sm font-medium leading-relaxed text-muted">
           Keeping the plans will leave them on your calendar as loose plans, without the trip attached.
-          Deleting them removes their photos and tickets too.
+          Deleting them removes their photos and tickets too. The packing list is removed either way.
         </p>
       </Sheet>
     </Page>

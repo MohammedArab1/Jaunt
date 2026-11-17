@@ -13,6 +13,7 @@ import {
   getActivityParticipants,
   getTripAccess,
   getTripHasMembers,
+  getTripParticipantIds,
 } from '../tripAccess.js'
 
 const router = Router()
@@ -63,6 +64,20 @@ const activitySchema = z.object({
   updatedAt: z.number().int().nonnegative(),
 })
 
+const packingItemSchema = z.object({
+  id: z.string().min(1).max(100),
+  tripId: z.string().min(1).max(100),
+  // Optional so older clients can still sync; new clients always send it.
+  ownerUserId: z.string().min(1).max(100).optional(),
+  name: z.string().min(1).max(200),
+  category: z.enum(['documents', 'clothing', 'toiletries', 'electronics', 'gear', 'other']),
+  quantity: z.number().int().min(1).max(99),
+  packed: z.boolean(),
+  sortOrder: z.number().int(),
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+})
+
 const attachmentSchema = z.object({
   id: z.string().min(1).max(100),
   activityId: z.string().min(1).max(100),
@@ -74,7 +89,7 @@ const attachmentSchema = z.object({
 })
 
 const deletionSchema = z.object({
-  entity: z.enum(['trip', 'activity', 'attachment']),
+  entity: z.enum(['trip', 'activity', 'attachment', 'packing']),
   id: z.string().min(1).max(100),
   deletedAt: z.number().int().nonnegative(),
 })
@@ -83,6 +98,7 @@ const syncSchema = z.object({
   lastRevision: z.number().int().nonnegative(),
   trips: z.array(tripSchema).max(500).default([]),
   activities: z.array(activitySchema).max(3000).default([]),
+  packingItems: z.array(packingItemSchema).max(3000).default([]),
   attachments: z.array(attachmentSchema).max(3000).default([]),
   deletions: z.array(deletionSchema).max(3000).default([]),
 })
@@ -184,6 +200,46 @@ async function upsertActivity(
   )
 }
 
+async function upsertPackingItem(
+  client: PoolClient,
+  ownerId: string,
+  item: SyncRequest['packingItems'][number] & {
+    resolvedTripId: string
+    ownerUserId: string
+  },
+): Promise<void> {
+  await client.query(
+    `INSERT INTO packing_items
+       (user_id, id, trip_id, owner_user_id, name, category, quantity, packed, sort_order,
+        created_at, updated_at, revision)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, nextval('sync_revision_seq'))
+     ON CONFLICT (user_id, id) DO UPDATE SET
+       trip_id = EXCLUDED.trip_id,
+       owner_user_id = packing_items.owner_user_id,
+       name = EXCLUDED.name,
+       category = EXCLUDED.category,
+       quantity = EXCLUDED.quantity,
+       packed = EXCLUDED.packed,
+       sort_order = EXCLUDED.sort_order,
+       created_at = LEAST(packing_items.created_at, EXCLUDED.created_at),
+       updated_at = EXCLUDED.updated_at,
+       revision = nextval('sync_revision_seq')`,
+    [
+      ownerId,
+      item.id,
+      item.resolvedTripId,
+      item.ownerUserId,
+      item.name,
+      item.category,
+      item.quantity,
+      item.packed,
+      item.sortOrder,
+      item.createdAt,
+      item.updatedAt,
+    ],
+  )
+}
+
 async function upsertAttachment(
   client: PoolClient,
   ownerId: string,
@@ -270,6 +326,48 @@ async function pushActivities(
   }
 }
 
+async function pushPackingItems(
+  client: PoolClient,
+  userId: string,
+  items: SyncRequest['packingItems'],
+): Promise<void> {
+  for (const item of items) {
+    const existingResult = await client.query<{
+      user_id: string
+      trip_id: string
+      owner_user_id: string
+    }>('SELECT user_id, trip_id, owner_user_id FROM packing_items WHERE id = $1 LIMIT 1', [
+      item.id,
+    ])
+    const existing = existingResult.rows[0]
+
+    if (existing) {
+      // A packing list belongs to one traveler. Nobody can edit someone else's list.
+      if (existing.owner_user_id !== userId) continue
+      const existingAccess = await getTripAccess(client, userId, existing.trip_id)
+      if (!existingAccess) continue
+
+      await upsertPackingItem(client, existing.user_id, {
+        ...item,
+        ownerUserId: existing.owner_user_id,
+        resolvedTripId: existing.trip_id,
+      })
+      continue
+    }
+
+    const ownerUserId = item.ownerUserId ?? userId
+    if (ownerUserId !== userId) continue
+    const access = await getTripAccess(client, userId, item.tripId)
+    if (!access) continue
+
+    await upsertPackingItem(client, access.ownerId, {
+      ...item,
+      ownerUserId,
+      resolvedTripId: item.tripId,
+    })
+  }
+}
+
 async function pushAttachments(
   client: PoolClient,
   userId: string,
@@ -289,6 +387,36 @@ async function applyDeletions(
   deletions: SyncRequest['deletions'],
 ): Promise<void> {
   for (const deletion of deletions) {
+    if (deletion.entity === 'packing') {
+      const result = await client.query<{
+        user_id: string
+        trip_id: string
+        owner_user_id: string
+      }>('SELECT user_id, trip_id, owner_user_id FROM packing_items WHERE id = $1 LIMIT 1', [
+        deletion.id,
+      ])
+      const item = result.rows[0]
+
+      if (!item) {
+        // Acknowledge the local delete even if the server never had the row.
+        await addTombstones(client, [userId], 'packing', deletion.id, deletion.deletedAt)
+        continue
+      }
+
+      // Only the traveler who owns the list can remove its items.
+      if (item.owner_user_id !== userId) continue
+      const access = await getTripAccess(client, userId, item.trip_id)
+      if (!access) continue
+
+      const participants = await getTripParticipantIds(client, item.trip_id)
+      await client.query('DELETE FROM packing_items WHERE user_id = $1 AND id = $2', [
+        item.user_id,
+        deletion.id,
+      ])
+      await addTombstones(client, participants, 'packing', deletion.id, deletion.deletedAt)
+      continue
+    }
+
     if (deletion.entity === 'attachment') {
       const result = await client.query<{ user_id: string; activity_id: string }>(
         'SELECT user_id, activity_id FROM attachments WHERE id = $1 LIMIT 1',
@@ -373,6 +501,7 @@ router.post(
 
       await pushTrips(client, userId, input.trips)
       await pushActivities(client, userId, input.activities)
+      await pushPackingItems(client, userId, input.packingItems)
       await pushAttachments(client, userId, input.attachments)
       await applyDeletions(client, userId, input.deletions)
 
@@ -393,6 +522,22 @@ router.post(
         [userId, input.lastRevision],
       )
 
+      const travelersResult = await client.query(
+        `SELECT t.id AS trip_id, u.id, u.display_name, u.color,
+                CASE WHEN u.id = t.user_id THEN 'owner' ELSE 'member' END AS role
+         FROM trips t
+         JOIN users u ON u.id = t.user_id OR EXISTS (
+           SELECT 1 FROM trip_members m
+           WHERE m.trip_id = t.id AND m.user_id = u.id AND m.status = 'accepted'
+         )
+         WHERE t.user_id = $1 OR EXISTS (
+           SELECT 1 FROM trip_members me
+           WHERE me.trip_id = t.id AND me.user_id = $1 AND me.status = 'accepted'
+         )
+         ORDER BY t.id, CASE WHEN u.id = t.user_id THEN 0 ELSE 1 END, u.display_name`,
+        [userId],
+      )
+
       const activitiesResult = await client.query(
         `SELECT a.id, a.trip_id, a.name, a.date::text AS date, a.end_date::text AS end_date,
                 a.start_time, a.end_time, a.time_slot, a.location, a.type, a.notes,
@@ -410,6 +555,23 @@ router.post(
            )
          )
          ORDER BY a.revision ASC`,
+        [userId, input.lastRevision],
+      )
+
+      const packingItemsResult = await client.query(
+        `SELECT p.id, p.trip_id, p.owner_user_id, p.name, p.category, p.quantity, p.packed,
+                p.sort_order, p.created_at, p.updated_at, p.revision
+         FROM packing_items p
+         WHERE p.revision > $2 AND EXISTS (
+           SELECT 1 FROM trips t
+           WHERE t.id = p.trip_id AND (
+             t.user_id = $1 OR EXISTS (
+               SELECT 1 FROM trip_members m
+               WHERE m.trip_id = t.id AND m.user_id = $1 AND m.status = 'accepted'
+             )
+           )
+         )
+         ORDER BY p.revision ASC`,
         [userId, input.lastRevision],
       )
 
@@ -471,6 +633,14 @@ router.post(
         }
       })
 
+      const travelers = travelersResult.rows.map((row) => ({
+        tripId: row.trip_id,
+        id: row.id,
+        displayName: row.display_name,
+        color: row.color,
+        role: row.role as 'owner' | 'member',
+      }))
+
       const activities = activitiesResult.rows.map((row) => {
         bump(Number(row.revision))
         return {
@@ -494,6 +664,22 @@ router.post(
         }
       })
 
+      const packingItems = packingItemsResult.rows.map((row) => {
+        bump(Number(row.revision))
+        return {
+          id: row.id,
+          tripId: row.trip_id,
+          ownerUserId: row.owner_user_id,
+          name: row.name,
+          category: row.category,
+          quantity: Number(row.quantity),
+          packed: row.packed,
+          sortOrder: row.sort_order,
+          createdAt: Number(row.created_at),
+          updatedAt: Number(row.updated_at),
+        }
+      })
+
       const attachments = attachmentsResult.rows.map((row) => {
         bump(Number(row.revision))
         return {
@@ -511,14 +697,14 @@ router.post(
       const deletions = tombstonesResult.rows.map((row) => {
         bump(Number(row.revision))
         return {
-          entity: row.entity_type as 'trip' | 'activity' | 'attachment',
+          entity: row.entity_type as 'trip' | 'activity' | 'attachment' | 'packing',
           id: row.entity_id,
           deletedAt: Number(row.deleted_at),
         }
       })
 
       res.setHeader('Cache-Control', 'no-store')
-      res.json({ cursor, trips, activities, attachments, deletions })
+      res.json({ cursor, trips, activities, packingItems, attachments, travelers, deletions })
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined)
       throw error

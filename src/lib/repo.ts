@@ -1,6 +1,7 @@
 import { db } from '@/db'
-import type { Activity, Attachment, Profile, Trip } from '@/types'
+import type { Activity, Attachment, PackingItem, Profile, Trip } from '@/types'
 import { newId } from './id'
+import { PACKING_ESSENTIALS } from './packing'
 import {
   activityEndDate,
   activityForDate,
@@ -38,7 +39,7 @@ async function renumberDay(profileId: string, date: string): Promise<void> {
 
 async function queueDeletion(
   profileId: string,
-  entity: 'trip' | 'activity' | 'attachment',
+  entity: 'trip' | 'activity' | 'attachment' | 'packing',
   entityId: string,
 ): Promise<void> {
   const profile = await db.profiles.get(profileId)
@@ -262,6 +263,138 @@ export async function deleteAttachment(id: string): Promise<void> {
   emitLocalChange()
 }
 
+function nextPackingSortOrder(items: PackingItem[], category: PackingItem['category']): number {
+  const orders = items
+    .filter((item) => item.category === category)
+    .map((item) => item.sortOrder)
+  return (orders.length ? Math.max(...orders) : -1) + 1
+}
+
+export async function createPackingItem(input: {
+  profileId: string
+  tripId: string
+  ownerUserId: string
+  name: string
+  category: PackingItem['category']
+  quantity?: number
+}): Promise<PackingItem> {
+  const now = Date.now()
+  const item: PackingItem = {
+    id: newId(),
+    profileId: input.profileId,
+    tripId: input.tripId,
+    ownerUserId: input.ownerUserId,
+    name: input.name.trim(),
+    category: input.category,
+    quantity: Math.min(99, Math.max(1, Math.round(input.quantity ?? 1))),
+    packed: false,
+    sortOrder: 0,
+    createdAt: now,
+    updatedAt: now,
+    dirty: true,
+  }
+
+  await db.transaction('rw', db.packingItems, async () => {
+    const siblings = await db.packingItems.where('tripId').equals(input.tripId).toArray()
+    item.sortOrder = nextPackingSortOrder(siblings, item.category)
+    await db.packingItems.add(item)
+  })
+
+  emitLocalChange()
+  return item
+}
+
+export async function updatePackingItem(item: PackingItem): Promise<void> {
+  await db.transaction('rw', db.packingItems, async () => {
+    const existing = await db.packingItems.get(item.id)
+    if (!existing) return
+
+    let sortOrder = existing.sortOrder
+    if (existing.category !== item.category) {
+      const siblings = await db.packingItems.where('tripId').equals(existing.tripId).toArray()
+      sortOrder = nextPackingSortOrder(
+        siblings.filter((sibling) => sibling.id !== item.id),
+        item.category,
+      )
+    }
+
+    await db.packingItems.put({
+      ...item,
+      profileId: existing.profileId,
+      tripId: existing.tripId,
+      ownerUserId: existing.ownerUserId,
+      name: item.name.trim(),
+      quantity: Math.min(99, Math.max(1, Math.round(item.quantity))),
+      sortOrder,
+      dirty: true,
+      updatedAt: Date.now(),
+    })
+  })
+
+  emitLocalChange()
+}
+
+export async function setPackingItemPacked(id: string, packed: boolean): Promise<void> {
+  await db.packingItems.update(id, { packed, dirty: true, updatedAt: Date.now() })
+  emitLocalChange()
+}
+
+export async function deletePackingItem(id: string): Promise<void> {
+  await db.transaction(
+    'rw',
+    [db.packingItems, db.profiles, db.deletions],
+    async () => {
+      const item = await db.packingItems.get(id)
+      if (!item) return
+      await db.packingItems.delete(id)
+      await queueDeletion(item.profileId, 'packing', id)
+    },
+  )
+  emitLocalChange()
+}
+
+export async function seedPackingEssentials(
+  profileId: string,
+  tripId: string,
+  ownerUserId: string,
+): Promise<number> {
+  const now = Date.now()
+  let added = 0
+
+  await db.transaction('rw', db.packingItems, async () => {
+    const existing = await db.packingItems.where('tripId').equals(tripId).toArray()
+    const names = new Set(existing.map((item) => item.name.trim().toLowerCase()))
+
+    for (const essential of PACKING_ESSENTIALS) {
+      const key = essential.name.trim().toLowerCase()
+      if (names.has(key)) continue
+
+      const item: PackingItem = {
+        id: newId(),
+        profileId,
+        tripId,
+        ownerUserId,
+        name: essential.name,
+        category: essential.category,
+        quantity: essential.quantity,
+        packed: false,
+        sortOrder: nextPackingSortOrder(existing, essential.category),
+        createdAt: now,
+        updatedAt: now,
+        dirty: true,
+      }
+
+      existing.push(item)
+      names.add(key)
+      await db.packingItems.add(item)
+      added += 1
+    }
+  })
+
+  if (added > 0) emitLocalChange()
+  return added
+}
+
 export async function createTrip(input: {
   profileId: string
   name: string
@@ -302,7 +435,7 @@ export async function updateTrip(trip: Trip): Promise<void> {
 export async function deleteTrip(tripId: string, deletePlans: boolean): Promise<void> {
   await db.transaction(
     'rw',
-    [db.trips, db.activities, db.attachments, db.files, db.profiles, db.deletions],
+    [db.trips, db.activities, db.packingItems, db.attachments, db.files, db.profiles, db.deletions],
     async () => {
       const trip = await db.trips.get(tripId)
       if (!trip) return
@@ -333,6 +466,7 @@ export async function deleteTrip(tripId: string, deletePlans: boolean): Promise<
           })
       }
 
+      await db.packingItems.where('tripId').equals(tripId).delete()
       await db.trips.delete(tripId)
       await queueDeletion(trip.profileId, 'trip', tripId)
     },
@@ -359,7 +493,7 @@ export async function updateProfileRecord(id: string, patch: Pick<Profile, 'name
 export async function deleteProfileData(profileId: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.profiles, db.trips, db.activities, db.attachments, db.files, db.deletions, db.syncMeta],
+    [db.profiles, db.trips, db.activities, db.packingItems, db.attachments, db.files, db.deletions, db.syncMeta],
     async () => {
       const activities = await db.activities.where('profileId').equals(profileId).toArray()
       const activityIds = activities.map((activity) => activity.id)
@@ -370,6 +504,7 @@ export async function deleteProfileData(profileId: string): Promise<void> {
       await db.files.bulkDelete(attachments.map((attachment) => attachment.id))
       await db.attachments.bulkDelete(attachments.map((attachment) => attachment.id))
       await db.activities.where('profileId').equals(profileId).delete()
+      await db.packingItems.where('profileId').equals(profileId).delete()
       await db.trips.where('profileId').equals(profileId).delete()
       await db.deletions.where('profileId').equals(profileId).delete()
       await db.syncMeta.where('key').startsWith(`sync:${profileId}`).delete()

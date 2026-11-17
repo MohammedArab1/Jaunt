@@ -10,12 +10,27 @@ export type ActivityType =
   | 'shopping'
   | 'other'
 
+export type PackingCategory =
+  | 'documents'
+  | 'clothing'
+  | 'toiletries'
+  | 'electronics'
+  | 'gear'
+  | 'other'
+
 export interface Profile {
   id: string
   name: string
   color: string
   createdAt: number
   kind?: 'guest' | 'account'
+}
+
+export interface TripTraveler {
+  id: string
+  displayName: string
+  color: string
+  role: 'owner' | 'member'
 }
 
 export interface Trip {
@@ -30,6 +45,7 @@ export interface Trip {
   notes?: string
   role?: 'owner' | 'member'
   memberCount?: number
+  travelers?: TripTraveler[]
   createdAt: number
   updatedAt: number
   dirty?: boolean
@@ -57,6 +73,21 @@ export interface Activity {
   dirty?: boolean
 }
 
+export interface PackingItem {
+  id: string
+  profileId: string
+  tripId: string
+  ownerUserId: string
+  name: string
+  category: PackingCategory
+  quantity: number
+  packed: boolean
+  sortOrder: number
+  createdAt: number
+  updatedAt: number
+  dirty?: boolean
+}
+
 export interface Attachment {
   id: string
   activityId: string
@@ -78,7 +109,7 @@ export interface FileRecord {
 export interface PendingDeletion {
   id?: number
   profileId: string
-  entity: 'trip' | 'activity' | 'attachment'
+  entity: 'trip' | 'activity' | 'attachment' | 'packing'
   entityId: string
   deletedAt: number
 }
@@ -100,6 +131,7 @@ export interface Backup {
   profiles: Profile[]
   trips: Trip[]
   activities: Activity[]
+  packingItems?: PackingItem[]
   attachments: BackupFile[]
 }
 
@@ -152,6 +184,23 @@ export interface SyncActivity {
   updatedAt: number
 }
 
+export interface SyncTraveler extends TripTraveler {
+  tripId: string
+}
+
+export interface SyncPackingItem {
+  id: string
+  tripId: string
+  ownerUserId: string
+  name: string
+  category: PackingCategory
+  quantity: number
+  packed: boolean
+  sortOrder: number
+  createdAt: number
+  updatedAt: number
+}
+
 export interface SyncAttachment {
   id: string
   activityId: string
@@ -164,7 +213,7 @@ export interface SyncAttachment {
 }
 
 export interface SyncDeletion {
-  entity: 'trip' | 'activity' | 'attachment'
+  entity: 'trip' | 'activity' | 'attachment' | 'packing'
   id: string
   deletedAt: number
 }
@@ -173,6 +222,7 @@ export interface SyncRequest {
   lastRevision: number
   trips: SyncTrip[]
   activities: SyncActivity[]
+  packingItems: SyncPackingItem[]
   attachments: SyncAttachment[]
   deletions: SyncDeletion[]
 }
@@ -181,7 +231,9 @@ export interface SyncResponse {
   cursor: number
   trips: SyncTrip[]
   activities: SyncActivity[]
+  packingItems: SyncPackingItem[]
   attachments: SyncAttachment[]
+  travelers: SyncTraveler[]
   deletions: SyncDeletion[]
 }
 

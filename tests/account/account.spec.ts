@@ -211,7 +211,61 @@ test('syncs a trip across devices and keeps plans when the trip is deleted', asy
 })
 
 
-test('invites another account into a shared trip', async ({ browser }) => {
+test('syncs a packing list across devices', async ({ page, browser }) => {
+  const email = uniqueEmail('mo.packing')
+  await register(page, email)
+
+  const start = (() => {
+    const date = new Date()
+    date.setDate(date.getDate() + 2)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  })()
+  const end = (() => {
+    const date = new Date()
+    date.setDate(date.getDate() + 4)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  })()
+
+  await page.getByRole('link', { name: 'Trips' }).click()
+  await page.getByRole('button', { name: 'New trip' }).click()
+  await page.getByLabel('Trip name').fill('Packing sync')
+  await page.locator('#trip-start').fill(start)
+  await page.locator('#trip-end').fill(end)
+  await page.getByRole('button', { name: 'Create trip' }).click()
+  await expect(page.getByRole('heading', { name: 'Packing sync' })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Open packing list for Packing sync' }).click()
+  await page.getByRole('button', { name: 'Documents', exact: true }).click()
+  await page.getByLabel('Packing item').fill('Passport')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Edit Passport' })).toBeVisible()
+  await page.waitForTimeout(4000)
+
+  const second = await loginOnNewDevice(browser, email)
+  try {
+    await second.page.getByRole('link', { name: 'Trips' }).click()
+    await second.page.getByRole('link', { name: /Packing sync/ }).click()
+    await second.page.getByRole('link', { name: 'Open packing list for Packing sync' }).click()
+    await expect(second.page.getByRole('button', { name: 'Edit Passport' })).toBeVisible()
+
+    await second.page.getByRole('button', { name: 'Mark Passport as packed' }).click()
+    await expect(second.page.getByRole('button', { name: 'Mark Passport as not packed' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await second.page.waitForTimeout(3000)
+  } finally {
+    await second.close()
+  }
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Mark Passport as not packed' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+})
+
+test('invites another account into a shared trip and keeps packing lists personal', async ({ browser }) => {
   const base = baseURL
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'en-US' }
   const alexContext = await browser.newContext({ baseURL: base, ...phone })
@@ -232,10 +286,16 @@ test('invites another account into a shared trip', async ({ browser }) => {
     await expect(alex.getByRole('heading', { name: 'Shared trip' })).toBeVisible()
 
     await alex.getByRole('button', { name: 'Trip members' }).click()
-    const samEmail = await sam.evaluate(() => {
+    const samUser = await sam.evaluate(() => {
       const cached = localStorage.getItem('jaunt.cachedUser')
-      return cached ? JSON.parse(cached).email : ''
+      return cached ? JSON.parse(cached) : null
     })
+    const alexName = await alex.evaluate(() => {
+      const cached = localStorage.getItem('jaunt.cachedUser')
+      return cached ? JSON.parse(cached).displayName : 'Alex'
+    })
+    const samEmail = samUser?.email ?? ''
+    const samName = samUser?.displayName ?? 'Sam'
     await alex.getByPlaceholder('their@email.com').fill(samEmail)
     await alex.getByRole('button', { name: 'Invite', exact: true }).click()
     await expect(alex.getByText(samEmail)).toBeVisible()
@@ -258,6 +318,36 @@ test('invites another account into a shared trip', async ({ browser }) => {
     await alex.waitForTimeout(4000)
     await alex.reload()
     await alex.getByRole('button', { name: 'View Plan from Sam' }).waitFor({ timeout: 20_000 })
+
+    await alex.getByRole('link', { name: 'Open packing list for Shared trip' }).click()
+    await alex.getByLabel('Packing item').fill('Alex charger')
+    await alex.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(alex.getByRole('button', { name: 'Edit Alex charger' })).toBeVisible()
+
+    await sam.getByRole('link', { name: 'Open packing list for Shared trip' }).click()
+    await sam.getByLabel('Packing item').fill('Sam sunscreen')
+    await sam.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(sam.getByRole('button', { name: 'Edit Sam sunscreen' })).toBeVisible()
+
+    await alex.waitForTimeout(4000)
+    await sam.waitForTimeout(4000)
+    await alex.reload()
+    await sam.reload()
+
+    await expect(alex.getByRole('button', { name: 'You', exact: true })).toBeVisible()
+    await alex.getByRole('button', { name: samName, exact: true }).click()
+    await expect(alex.getByText('Sam sunscreen')).toBeVisible()
+    await expect(alex.getByRole('button', { name: 'Edit Sam sunscreen' })).toHaveCount(0)
+    await expect(alex.getByText(new RegExp(`Only ${samName} can add or check off items`))).toBeVisible()
+    await expect(alex.getByRole('button', { name: 'Add', exact: true })).toHaveCount(0)
+
+    await alex.getByRole('button', { name: 'You', exact: true }).click()
+    await expect(alex.getByRole('button', { name: 'Edit Alex charger' })).toBeVisible()
+
+    await sam.getByRole('button', { name: alexName, exact: true }).click()
+    await expect(sam.getByText('Alex charger')).toBeVisible()
+    await expect(sam.getByRole('button', { name: 'Edit Alex charger' })).toHaveCount(0)
+    await expect(sam.getByText(new RegExp(`Only ${alexName} can add or check off items`))).toBeVisible()
   } finally {
     await alexContext.close()
     await samContext.close()

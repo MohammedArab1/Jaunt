@@ -1,5 +1,6 @@
 import { db } from '@/db'
 import type { Backup, BackupFile, Profile } from '@/types'
+import { isPackingCategory } from './packing'
 import { todayKey } from './dates'
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -34,6 +35,9 @@ export async function buildBackup(): Promise<Backup> {
   const activities = profileIds.length
     ? await db.activities.where('profileId').anyOf(profileIds).toArray()
     : []
+  const packingItems = profileIds.length
+    ? await db.packingItems.where('profileId').anyOf(profileIds).toArray()
+    : []
   const attachments = profileIds.length
     ? await db.attachments.where('profileId').anyOf(profileIds).toArray()
     : []
@@ -58,6 +62,7 @@ export async function buildBackup(): Promise<Backup> {
     profiles,
     trips,
     activities,
+    packingItems,
     attachments: backupAttachments,
   }
 }
@@ -128,9 +133,34 @@ export async function restoreBackup(text: string): Promise<Backup> {
       },
     }))
 
+  const restoredTripIds = new Set(
+    parsed.trips
+      .filter((trip) => profileIds.has(trip.profileId))
+      .map((trip) => String(trip.id)),
+  )
+  const packingItems = (Array.isArray(parsed.packingItems) ? parsed.packingItems : [])
+    .filter(
+      (item) =>
+        profileIds.has(String(item.profileId)) && restoredTripIds.has(String(item.tripId)),
+    )
+    .map((item) => ({
+      id: String(item.id),
+      profileId: String(item.profileId),
+      tripId: String(item.tripId),
+      ownerUserId: String(item.ownerUserId ?? item.profileId),
+      name: String(item.name ?? '').trim() || 'Packing item',
+      category: isPackingCategory(item.category) ? item.category : ('other' as const),
+      quantity: Math.min(99, Math.max(1, Math.round(Number(item.quantity) || 1))),
+      packed: Boolean(item.packed),
+      sortOrder: Number(item.sortOrder) || 0,
+      createdAt: Number(item.createdAt) || Date.now(),
+      updatedAt: Number(item.updatedAt) || Number(item.createdAt) || Date.now(),
+      dirty: false,
+    }))
+
   await db.transaction(
     'rw',
-    [db.profiles, db.trips, db.activities, db.attachments, db.files, db.deletions],
+    [db.profiles, db.trips, db.activities, db.packingItems, db.attachments, db.files, db.deletions],
     async () => {
       const existingProfiles = await db.profiles.toArray()
       const guestIds = existingProfiles
@@ -145,6 +175,7 @@ export async function restoreBackup(text: string): Promise<Backup> {
           await db.attachments.bulkDelete(attachmentIds)
         }
         await db.activities.where('profileId').anyOf(guestIds).delete()
+        await db.packingItems.where('profileId').anyOf(guestIds).delete()
         await db.trips.where('profileId').anyOf(guestIds).delete()
         await db.deletions.where('profileId').anyOf(guestIds).delete()
         await db.profiles.bulkDelete(guestIds)
@@ -164,6 +195,9 @@ export async function restoreBackup(text: string): Promise<Backup> {
         await db.activities.bulkAdd(
           parsed.activities.filter((activity) => profileIds.has(activity.profileId)),
         )
+      }
+      if (packingItems.length) {
+        await db.packingItems.bulkAdd(packingItems)
       }
       if (records.length) {
         await db.attachments.bulkAdd(records.map((record) => record.attachment))

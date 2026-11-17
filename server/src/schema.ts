@@ -75,6 +75,50 @@ ALTER TABLE activities ADD COLUMN IF NOT EXISTS time_slot text;
 CREATE UNIQUE INDEX IF NOT EXISTS trips_global_id_idx ON trips(id);
 CREATE UNIQUE INDEX IF NOT EXISTS activities_global_id_idx ON activities(id);
 
+-- user_id is the trip owner who stores the row. owner_user_id is the traveler
+-- whose personal packing list the item belongs to.
+CREATE TABLE IF NOT EXISTS packing_items (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id text NOT NULL,
+  trip_id text NOT NULL,
+  owner_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  category text NOT NULL DEFAULT 'other'
+    CHECK (category IN ('documents', 'clothing', 'toiletries', 'electronics', 'gear', 'other')),
+  quantity integer NOT NULL DEFAULT 1 CHECK (quantity >= 1 AND quantity <= 99),
+  packed boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at bigint NOT NULL,
+  updated_at bigint NOT NULL,
+  revision bigint NOT NULL DEFAULT nextval('sync_revision_seq'),
+  PRIMARY KEY (user_id, id),
+  FOREIGN KEY (user_id, trip_id) REFERENCES trips(user_id, id) ON DELETE CASCADE
+);
+
+-- Databases created before personal packing lists had one list per trip.
+-- Backfill ownership to the trip owner and force clients to re-pull the rows.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'packing_items'
+      AND column_name = 'owner_user_id'
+  ) THEN
+    ALTER TABLE packing_items
+      ADD COLUMN IF NOT EXISTS owner_user_id uuid REFERENCES users(id) ON DELETE CASCADE;
+    UPDATE packing_items SET owner_user_id = user_id;
+    ALTER TABLE packing_items ALTER COLUMN owner_user_id SET NOT NULL;
+    UPDATE packing_items SET revision = nextval('sync_revision_seq');
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS packing_items_global_id_idx ON packing_items(id);
+CREATE INDEX IF NOT EXISTS packing_items_user_revision_idx ON packing_items(user_id, revision);
+CREATE INDEX IF NOT EXISTS packing_items_trip_idx ON packing_items(trip_id);
+CREATE INDEX IF NOT EXISTS packing_items_trip_owner_idx ON packing_items(trip_id, owner_user_id);
+CREATE INDEX IF NOT EXISTS packing_items_trip_revision_idx ON packing_items(trip_id, revision);
+
 CREATE TABLE IF NOT EXISTS trip_members (
   trip_id text NOT NULL,
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -114,11 +158,16 @@ CREATE TABLE IF NOT EXISTS attachment_files (
 
 CREATE TABLE IF NOT EXISTS tombstones (
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  entity_type text NOT NULL CHECK (entity_type IN ('trip', 'activity', 'attachment')),
+  entity_type text NOT NULL CHECK (entity_type IN ('trip', 'activity', 'attachment', 'packing')),
   entity_id text NOT NULL,
   deleted_at bigint NOT NULL,
   revision bigint NOT NULL,
   PRIMARY KEY (user_id, entity_type, entity_id)
 );
 CREATE INDEX IF NOT EXISTS tombstones_user_revision_idx ON tombstones(user_id, revision);
+
+-- Older databases created the tombstone table before packing items existed.
+ALTER TABLE tombstones DROP CONSTRAINT IF EXISTS tombstones_entity_type_check;
+ALTER TABLE tombstones ADD CONSTRAINT tombstones_entity_type_check
+  CHECK (entity_type IN ('trip', 'activity', 'attachment', 'packing'));
 `

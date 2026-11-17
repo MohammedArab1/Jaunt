@@ -3,12 +3,15 @@ import { ApiError, api } from './api'
 import type {
   Activity,
   Attachment,
+  PackingItem,
   SyncActivity,
   SyncAttachment,
   SyncDeletion,
+  SyncPackingItem,
   SyncRequest,
   SyncTrip,
   Trip,
+  TripTraveler,
 } from '@/types'
 
 export class SyncAbortedError extends Error {
@@ -72,6 +75,21 @@ function toSyncActivity(activity: Activity): SyncActivity {
   }
 }
 
+function toSyncPackingItem(item: PackingItem): SyncPackingItem {
+  return {
+    id: item.id,
+    tripId: item.tripId,
+    ownerUserId: item.ownerUserId,
+    name: item.name,
+    category: item.category,
+    quantity: item.quantity,
+    packed: item.packed,
+    sortOrder: item.sortOrder,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }
+}
+
 function toSyncAttachment(attachment: Attachment): SyncAttachment {
   return {
     id: attachment.id,
@@ -84,7 +102,7 @@ function toSyncAttachment(attachment: Attachment): SyncAttachment {
   }
 }
 
-function toLocalTrip(trip: SyncTrip, profileId: string): Trip {
+function toLocalTrip(trip: SyncTrip, profileId: string, existing?: Trip): Trip {
   return {
     id: trip.id,
     profileId,
@@ -97,6 +115,7 @@ function toLocalTrip(trip: SyncTrip, profileId: string): Trip {
     notes: optional(trip.notes),
     role: trip.role ?? 'owner',
     memberCount: trip.memberCount ?? 0,
+    travelers: existing?.travelers,
     createdAt: trip.createdAt,
     updatedAt: trip.updatedAt,
     dirty: false,
@@ -123,6 +142,23 @@ function toLocalActivity(activity: SyncActivity, profileId: string): Activity {
     sortOrder: activity.sortOrder,
     createdAt: activity.createdAt,
     updatedAt: activity.updatedAt,
+    dirty: false,
+  }
+}
+
+function toLocalPackingItem(item: SyncPackingItem, profileId: string): PackingItem {
+  return {
+    id: item.id,
+    profileId,
+    tripId: item.tripId,
+    ownerUserId: item.ownerUserId ?? profileId,
+    name: item.name,
+    category: item.category,
+    quantity: item.quantity,
+    packed: item.packed,
+    sortOrder: item.sortOrder,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
     dirty: false,
   }
 }
@@ -177,6 +213,7 @@ async function applyRemoteDeletion(userId: string, deletion: SyncDeletion): Prom
         })
     }
 
+    await db.packingItems.where('tripId').equals(deletion.id).delete()
     await db.trips.delete(deletion.id)
   } else if (deletion.entity === 'activity') {
     const attachments = await db.attachments.where('activityId').equals(deletion.id).toArray()
@@ -185,6 +222,8 @@ async function applyRemoteDeletion(userId: string, deletion: SyncDeletion): Prom
       await db.attachments.bulkDelete(attachments.map((attachment) => attachment.id))
     }
     await db.activities.delete(deletion.id)
+  } else if (deletion.entity === 'packing') {
+    await db.packingItems.delete(deletion.id)
   } else {
     await db.attachments.delete(deletion.id)
     await db.files.delete(deletion.id)
@@ -274,17 +313,20 @@ export async function runSync(userId: string): Promise<SyncResult> {
 
   const state = await db.syncMeta.get(syncStateKey(userId))
 
-  const [dirtyTrips, dirtyActivities, dirtyAttachments, pendingDeletions] = await Promise.all([
-    db.trips.where('profileId').equals(userId).filter((trip) => Boolean(trip.dirty)).toArray(),
-    db.activities.where('profileId').equals(userId).filter((activity) => Boolean(activity.dirty)).toArray(),
-    db.attachments.where('profileId').equals(userId).filter((attachment) => Boolean(attachment.dirty)).toArray(),
-    db.deletions.where('profileId').equals(userId).toArray(),
-  ])
+  const [dirtyTrips, dirtyActivities, dirtyPackingItems, dirtyAttachments, pendingDeletions] =
+    await Promise.all([
+      db.trips.where('profileId').equals(userId).filter((trip) => Boolean(trip.dirty)).toArray(),
+      db.activities.where('profileId').equals(userId).filter((activity) => Boolean(activity.dirty)).toArray(),
+      db.packingItems.where('profileId').equals(userId).filter((item) => Boolean(item.dirty)).toArray(),
+      db.attachments.where('profileId').equals(userId).filter((attachment) => Boolean(attachment.dirty)).toArray(),
+      db.deletions.where('profileId').equals(userId).toArray(),
+    ])
 
   const request: SyncRequest = {
     lastRevision: state?.lastRevision ?? 0,
     trips: dirtyTrips.map(toSyncTrip),
     activities: dirtyActivities.map(toSyncActivity),
+    packingItems: dirtyPackingItems.map(toSyncPackingItem),
     attachments: dirtyAttachments.map(toSyncAttachment),
     deletions: pendingDeletions.map((deletion) => ({
       entity: deletion.entity,
@@ -301,6 +343,7 @@ export async function runSync(userId: string): Promise<SyncResult> {
 
   const pushedTrips = new Map(dirtyTrips.map((trip) => [trip.id, trip.updatedAt]))
   const pushedActivities = new Map(dirtyActivities.map((activity) => [activity.id, activity.updatedAt]))
+  const pushedPackingItems = new Map(dirtyPackingItems.map((item) => [item.id, item.updatedAt]))
   const pushedAttachments = new Map(dirtyAttachments.map((attachment) => [attachment.id, attachment.updatedAt]))
   const includedDeletionIds = pendingDeletions
     .map((deletion) => deletion.id)
@@ -314,6 +357,7 @@ export async function runSync(userId: string): Promise<SyncResult> {
       db.profiles,
       db.trips,
       db.activities,
+      db.packingItems,
       db.attachments,
       db.files,
       db.deletions,
@@ -332,11 +376,27 @@ export async function runSync(userId: string): Promise<SyncResult> {
         const local = await db.trips.get(trip.id)
         if (local?.dirty) {
           if (pushedTrips.get(trip.id) === local.updatedAt) {
-            await db.trips.put(toLocalTrip(trip, userId))
+            await db.trips.put(toLocalTrip(trip, userId, local))
           }
           continue
         }
-        await db.trips.put(toLocalTrip(trip, userId))
+        await db.trips.put(toLocalTrip(trip, userId, local))
+      }
+
+      const travelersByTrip = new Map<string, TripTraveler[]>()
+      for (const traveler of response.travelers ?? []) {
+        const list = travelersByTrip.get(traveler.tripId) ?? []
+        list.push({
+          id: traveler.id,
+          displayName: traveler.displayName,
+          color: traveler.color,
+          role: traveler.role,
+        })
+        travelersByTrip.set(traveler.tripId, list)
+      }
+      for (const [tripId, travelers] of travelersByTrip) {
+        const local = await db.trips.get(tripId)
+        if (local) await db.trips.update(tripId, { travelers })
       }
 
       for (const activity of response.activities) {
@@ -349,6 +409,18 @@ export async function runSync(userId: string): Promise<SyncResult> {
           continue
         }
         await db.activities.put(toLocalActivity(activity, userId))
+      }
+
+      for (const item of response.packingItems) {
+        if (pendingKeys.has(`packing:${item.id}`)) continue
+        const local = await db.packingItems.get(item.id)
+        if (local?.dirty) {
+          if (pushedPackingItems.get(item.id) === local.updatedAt) {
+            await db.packingItems.put(toLocalPackingItem(item, userId))
+          }
+          continue
+        }
+        await db.packingItems.put(toLocalPackingItem(item, userId))
       }
 
       for (const attachment of response.attachments) {
@@ -377,6 +449,10 @@ export async function runSync(userId: string): Promise<SyncResult> {
         const local = await db.activities.get(id)
         if (local?.dirty && local.updatedAt === updatedAt) await db.activities.update(id, { dirty: false })
       }
+      for (const [id, updatedAt] of pushedPackingItems) {
+        const local = await db.packingItems.get(id)
+        if (local?.dirty && local.updatedAt === updatedAt) await db.packingItems.update(id, { dirty: false })
+      }
       for (const [id, updatedAt] of pushedAttachments) {
         const local = await db.attachments.get(id)
         if (local?.dirty && local.updatedAt === updatedAt) await db.attachments.update(id, { dirty: false })
@@ -403,10 +479,16 @@ export async function runSync(userId: string): Promise<SyncResult> {
 
   return {
     cursor: response.cursor,
-    pushed: dirtyTrips.length + dirtyActivities.length + dirtyAttachments.length + pendingDeletions.length,
+    pushed:
+      dirtyTrips.length +
+      dirtyActivities.length +
+      dirtyPackingItems.length +
+      dirtyAttachments.length +
+      pendingDeletions.length,
     pulled:
       response.trips.length +
       response.activities.length +
+      response.packingItems.length +
       response.attachments.length +
       response.deletions.length,
     uploaded,

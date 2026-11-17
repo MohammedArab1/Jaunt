@@ -155,8 +155,10 @@ function GuestSettingsPage() {
       const first = backup.profiles[0]
       if (first) selectProfile(first.id)
       setPendingRestore(null)
+      const packingCount = backup.packingItems?.length ?? 0
+      const packingLabel = packingCount > 0 ? `, ${pluralize(packingCount, 'packing item')}` : ''
       toast(
-        `Backup restored — ${pluralize(backup.profiles.length, 'profile')}, ${pluralize(backup.activities.length, 'plan')}.`,
+        `Backup restored — ${pluralize(backup.profiles.length, 'profile')}, ${pluralize(backup.activities.length, 'plan')}${packingLabel}.`,
         'success',
         5000,
       )

@@ -9,6 +9,7 @@ import {
   bumpTripRevisions,
   findTripOwner,
   getTripAccess,
+  getTripParticipantIds,
 } from '../tripAccess.js'
 
 const router = Router()
@@ -302,10 +303,22 @@ router.delete(
           'SELECT id FROM activities WHERE trip_id = $1 AND user_id = $2',
           [tripId, ownerId],
         )
+        const packingItems = await client.query<{ id: string }>(
+          'SELECT id FROM packing_items WHERE trip_id = $1 AND owner_user_id = $2',
+          [tripId, memberId],
+        )
         const deletedAt = Date.now()
+        const participants = await getTripParticipantIds(client, tripId)
         for (const activity of activities.rows) {
           await addTombstones(client, [memberId], 'activity', activity.id, deletedAt)
         }
+        for (const item of packingItems.rows) {
+          await addTombstones(client, participants, 'packing', item.id, deletedAt)
+        }
+        await client.query('DELETE FROM packing_items WHERE trip_id = $1 AND owner_user_id = $2', [
+          tripId,
+          memberId,
+        ])
         await addTombstones(client, [memberId], 'trip', tripId, deletedAt)
       }
 
@@ -361,10 +374,22 @@ router.post(
         'SELECT id FROM activities WHERE trip_id = $1 AND user_id = $2',
         [tripId, ownerId],
       )
+      const packingItems = await client.query<{ id: string }>(
+        'SELECT id FROM packing_items WHERE trip_id = $1 AND owner_user_id = $2',
+        [tripId, userId],
+      )
       const deletedAt = Date.now()
+      const participants = await getTripParticipantIds(client, tripId)
       for (const activity of activities.rows) {
         await addTombstones(client, [userId], 'activity', activity.id, deletedAt)
       }
+      for (const item of packingItems.rows) {
+        await addTombstones(client, participants, 'packing', item.id, deletedAt)
+      }
+      await client.query('DELETE FROM packing_items WHERE trip_id = $1 AND owner_user_id = $2', [
+        tripId,
+        userId,
+      ])
       await addTombstones(client, [userId], 'trip', tripId, deletedAt)
       await client.query('DELETE FROM trip_members WHERE trip_id = $1 AND user_id = $2', [
         tripId,

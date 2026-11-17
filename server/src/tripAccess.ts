@@ -98,7 +98,7 @@ export async function getActivityParticipants(
 export async function addTombstones(
   client: DbClient,
   userIds: string[],
-  entity: 'trip' | 'activity' | 'attachment',
+  entity: 'trip' | 'activity' | 'attachment' | 'packing',
   entityId: string,
   deletedAt: number,
 ): Promise<void> {
@@ -118,6 +118,10 @@ export async function bumpTripRevisions(client: DbClient, tripId: string): Promi
   await client.query(`UPDATE trips SET revision = nextval('sync_revision_seq') WHERE id = $1`, [tripId])
   await client.query(
     `UPDATE activities SET revision = nextval('sync_revision_seq') WHERE trip_id = $1`,
+    [tripId],
+  )
+  await client.query(
+    `UPDATE packing_items SET revision = nextval('sync_revision_seq') WHERE trip_id = $1`,
     [tripId],
   )
   await client.query(

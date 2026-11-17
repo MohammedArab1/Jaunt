@@ -110,9 +110,10 @@ export function AccountSettingsPage() {
   const importProfile = async () => {
     if (!importTarget) return
     const result = await importGuestProfileIntoAccount(importTarget.id, user.id)
-    const importedPlans = pluralize(result.activities, 'plan')
-    const importedTrips = result.trips > 0 ? ` and ${pluralize(result.trips, 'trip')}` : ''
-    toast(`Imported ${importedPlans}${importedTrips}.`, 'success', 5000)
+    const imported = [pluralize(result.activities, 'plan')]
+    if (result.trips > 0) imported.push(pluralize(result.trips, 'trip'))
+    if (result.packingItems > 0) imported.push(pluralize(result.packingItems, 'packing item'))
+    toast(`Imported ${imported.join(', ')}.`, 'success', 5000)
     setImportTarget(null)
     void syncNow()
   }

@@ -37,7 +37,7 @@ export async function ensureAccountProfile(user: AuthUser): Promise<void> {
 export async function clearAccountCache(userId: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.profiles, db.trips, db.activities, db.attachments, db.files, db.deletions, db.syncMeta],
+    [db.profiles, db.trips, db.activities, db.packingItems, db.attachments, db.files, db.deletions, db.syncMeta],
     async () => {
       const attachments = await db.attachments.where('profileId').equals(userId).toArray()
       const attachmentIds = attachments.map((attachment) => attachment.id)
@@ -48,6 +48,7 @@ export async function clearAccountCache(userId: string): Promise<void> {
       }
 
       await db.activities.where('profileId').equals(userId).delete()
+      await db.packingItems.where('profileId').equals(userId).delete()
       await db.trips.where('profileId').equals(userId).delete()
       await db.deletions.where('profileId').equals(userId).delete()
       await db.syncMeta.where('key').startsWith(`sync:${userId}`).delete()

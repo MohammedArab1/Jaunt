@@ -63,6 +63,7 @@ export function TripMembersSheet({ trip, onClose, onLeft }: TripMembersSheetProp
       setEmail('')
       toast('Invitation sent. It will appear in their Trips page.', 'success', 5000)
       await load()
+      void syncNow()
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : getErrorMessage(cause))
     } finally {
@@ -78,6 +79,7 @@ export function TripMembersSheet({ trip, onClose, onLeft }: TripMembersSheetProp
       setRemoveConfirm(null)
       toast('Person removed from the trip.', 'success')
       await load()
+      void syncNow()
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not remove that person.')
     } finally {
