@@ -8,6 +8,7 @@ import type {
   TripMember,
   TripMembersPayload,
   TripSharePayload,
+  WeatherLocation,
 } from '@/types'
 
 export class ApiError extends Error {
@@ -107,6 +108,24 @@ export const api = {
     request<GeocodeResponse>(`/api/geocode?q=${encodeURIComponent(query)}`, {
       timeoutMs: 8_000,
     }),
+
+  weather: (params: {
+    name?: string
+    latitude?: number
+    longitude?: number
+    timezone?: string
+    start: string
+    end: string
+  }) => {
+    const query = new URLSearchParams()
+    if (params.name) query.set('name', params.name)
+    if (params.latitude !== undefined) query.set('latitude', String(params.latitude))
+    if (params.longitude !== undefined) query.set('longitude', String(params.longitude))
+    if (params.timezone) query.set('timezone', params.timezone)
+    query.set('start', params.start)
+    query.set('end', params.end)
+    return request<WeatherLocation>(`/api/weather?${query.toString()}`, { timeoutMs: 25_000 })
+  },
 
   sync: (payload: SyncRequest) =>
     request<SyncResponse>('/api/sync', {

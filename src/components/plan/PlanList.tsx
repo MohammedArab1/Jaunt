@@ -24,6 +24,7 @@ interface PlanListProps {
   tripsById: Map<string, Trip>
   empty?: ReactNode
   sortable?: boolean
+  showWeather?: boolean
 }
 
 export function PlanList({
@@ -32,6 +33,7 @@ export function PlanList({
   tripsById,
   empty,
   sortable = true,
+  showWeather = false,
 }: PlanListProps) {
   const { openDetail } = useActivityViews()
   const { toast } = useToast()
@@ -119,6 +121,7 @@ export function PlanList({
               onOpen={() => openDetail(activity.id)}
               onToggle={(completed) => void toggle(activity, completed)}
               sortable={sortable}
+              showWeather={showWeather}
             />
           ))}
         </div>

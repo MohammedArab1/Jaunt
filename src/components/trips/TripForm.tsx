@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Loader2, StickyNote } from 'lucide-react'
 import { addDays } from 'date-fns'
-import type { Trip } from '@/types'
+import type { Trip, TripDestination } from '@/types'
 import { dateKey, dateRangeLabel, formatDay, todayKey } from '@/lib/dates'
 import { TRIP_COLORS, TRIP_EMOJIS } from '@/lib/palette'
 import { createTrip, updateTrip } from '@/lib/repo'
+import { tripDestinations } from '@/lib/tripDestinations'
 import { cn, getErrorMessage, hexAlpha } from '@/lib/utils'
 import { useProfile } from '@/context/ProfileContext'
 import { useToast } from '@/context/ToastContext'
@@ -19,18 +20,15 @@ interface TripFormProps {
   onSaved?: (trip: Trip) => void
 }
 
+function initialDestinations(trip?: Trip): TripDestination[] {
+  return trip ? tripDestinations(trip) : []
+}
+
 export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
   const { profile } = useProfile()
   const { toast } = useToast()
   const [name, setName] = useState(trip?.name ?? '')
-  const [destinations, setDestinations] = useState<string[]>(() =>
-    trip?.destination
-      ? trip.destination
-          .split(' · ')
-          .map((city) => city.trim())
-          .filter(Boolean)
-      : [],
-  )
+  const [destinations, setDestinations] = useState<TripDestination[]>(() => initialDestinations(trip))
   const [startDate, setStartDate] = useState(trip?.startDate ?? todayKey())
   const [endDate, setEndDate] = useState(trip?.endDate ?? dateKey(addDays(new Date(), 2)))
   const [color, setColor] = useState(trip?.color ?? TRIP_COLORS[0])
@@ -60,7 +58,7 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
     }
     if (!profile) return
 
-    const destination = destinations.join(' · ')
+    const destination = destinations.map((city) => city.name).join(' · ')
     if (destination.length > 300) {
       setError('Keep the destination under 300 characters.')
       return
@@ -71,6 +69,7 @@ export function TripForm({ trip, onClose, onSaved }: TripFormProps) {
       const fields = {
         name: name.trim(),
         destination: destination || undefined,
+        destinations,
         startDate,
         endDate,
         color,

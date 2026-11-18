@@ -18,6 +18,7 @@ interface OpenMeteoResult {
   longitude: number
   country?: string
   admin1?: string
+  timezone?: string
 }
 
 interface CityResult {
@@ -27,6 +28,7 @@ interface CityResult {
   admin1?: string
   latitude: number
   longitude: number
+  timezone?: string
 }
 
 interface CacheEntry {
@@ -81,6 +83,7 @@ router.get('/', limiter, async (req, res) => {
         admin1: item.admin1,
         latitude: item.latitude,
         longitude: item.longitude,
+        timezone: item.timezone,
       }))
 
     if (cache.size >= CACHE_MAX_ENTRIES) {

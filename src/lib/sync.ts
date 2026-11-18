@@ -43,6 +43,7 @@ function toSyncTrip(trip: Trip): SyncTrip {
     id: trip.id,
     name: trip.name,
     destination: trip.destination,
+    destinations: trip.destinations ?? null,
     startDate: trip.startDate,
     endDate: trip.endDate,
     color: trip.color,
@@ -57,6 +58,7 @@ function toSyncActivity(activity: Activity): SyncActivity {
   return {
     id: activity.id,
     tripId: activity.tripId,
+    destinationId: activity.destinationId,
     name: activity.name,
     date: activity.date,
     endDate: activity.endDate,
@@ -108,6 +110,7 @@ function toLocalTrip(trip: SyncTrip, profileId: string, existing?: Trip): Trip {
     profileId,
     name: trip.name,
     destination: optional(trip.destination),
+    destinations: trip.destinations ?? undefined,
     startDate: trip.startDate,
     endDate: trip.endDate,
     color: trip.color,
@@ -127,6 +130,7 @@ function toLocalActivity(activity: SyncActivity, profileId: string): Activity {
     id: activity.id,
     profileId,
     tripId: optional(activity.tripId),
+    destinationId: optional(activity.destinationId),
     name: activity.name,
     date: activity.date,
     endDate: optional(activity.endDate),
@@ -214,6 +218,7 @@ async function applyRemoteDeletion(userId: string, deletion: SyncDeletion): Prom
     }
 
     await db.packingItems.where('tripId').equals(deletion.id).delete()
+    await db.weatherCache.where('tripId').equals(deletion.id).delete()
     await db.trips.delete(deletion.id)
   } else if (deletion.entity === 'activity') {
     const attachments = await db.attachments.where('activityId').equals(deletion.id).toArray()
@@ -360,6 +365,7 @@ export async function runSync(userId: string): Promise<SyncResult> {
       db.packingItems,
       db.attachments,
       db.files,
+      db.weatherCache,
       db.deletions,
       db.syncMeta,
     ],

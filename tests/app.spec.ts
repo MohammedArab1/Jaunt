@@ -332,6 +332,156 @@ test('builds a packing list, checks items off, and keeps it after reload', async
   await expect(page.getByRole('button', { name: 'Mark Camera as not packed' })).toBeVisible()
 })
 
+test('shows per-city weather, plan weather, and cached weather offline', async ({ page, context }) => {
+  await page.route('**/api/geocode**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [] }) })
+  })
+  await page.route('**/api/weather**', async (route) => {
+    const url = new URL(route.request().url())
+    const name = url.searchParams.get('name') ?? 'Destination'
+    const start = url.searchParams.get('start') ?? localDayKey(0)
+    const days = [0, 1, 2].map((offset) => {
+      const date = localDayKey(offset)
+      const climate = offset === 2
+      return {
+        date,
+        mode: climate ? 'climate' : 'forecast',
+        available: true,
+        weatherCode: climate ? 3 : offset === 1 ? 61 : 0,
+        tempMax: name === 'Porto' ? 18 - offset : 22 - offset,
+        tempMin: name === 'Porto' ? 11 - offset : 14 - offset,
+        precipProbability: climate ? 40 : offset === 1 ? 60 : 10,
+        precipSum: offset === 1 ? 2 : 0,
+        windMax: 14,
+        uvMax: climate ? null : 4,
+        sunrise: climate ? null : `${date}T07:00`,
+        sunset: climate ? null : `${date}T18:00`,
+        rainYears: climate ? 2 : undefined,
+        climateYears: climate ? 5 : undefined,
+      }
+    })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        name,
+        country: 'Portugal',
+        admin1: name === 'Porto' ? 'Porto District' : 'Lisbon District',
+        latitude: name === 'Porto' ? 41.15 : 38.72,
+        longitude: name === 'Porto' ? -8.61 : -9.14,
+        timezone: 'Europe/Lisbon',
+        days,
+        hourly: [
+          {
+            time: `${start}T18:00`,
+            temp: name === 'Porto' ? 16 : 20,
+            weatherCode: 0,
+            precipProbability: 5,
+            windSpeed: 10,
+            isDay: true,
+          },
+          {
+            time: `${start}T19:00`,
+            temp: name === 'Porto' ? 15 : 19,
+            weatherCode: 0,
+            precipProbability: 5,
+            windSpeed: 9,
+            isDay: true,
+          },
+        ],
+        current: {
+          time: `${start}T18:00`,
+          temp: name === 'Porto' ? 17 : 21,
+          feelsLike: name === 'Porto' ? 16 : 20,
+          weatherCode: name === 'Porto' ? 3 : 0,
+          windSpeed: 10,
+          isDay: true,
+        },
+        fetchedAt: Date.now(),
+        attribution: { name: 'Open-Meteo', url: 'https://open-meteo.com/' },
+      }),
+    })
+  })
+
+  await onboard(page, 'Weather')
+  await page.getByRole('link', { name: 'Trips' }).click()
+  await page.getByRole('button', { name: 'New trip' }).click()
+  await page.getByLabel('Trip name').fill('Weather trip')
+  const destination = page.getByLabel('Destination')
+  await destination.fill('Lisbon')
+  await page.keyboard.press('Enter')
+  await destination.fill('Porto')
+  await page.keyboard.press('Enter')
+  await page.locator('#trip-start').fill(localDayKey(0))
+  await page.locator('#trip-end').fill(localDayKey(2))
+  await page.getByRole('button', { name: 'Create trip' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Weather trip' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open weather details for Lisbon' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open weather details for Porto' })).toBeVisible()
+  await expect(page.getByText('Trip average').first()).toBeVisible()
+  await expect(page.getByText('Rain likely on 2 of 3 days').first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open weather details for Lisbon' }).click()
+  await expect(page.getByRole('heading', { name: 'Weather in Lisbon' })).toBeVisible()
+  await expect(page.getByText('Next few hours')).toBeVisible()
+  await expect(page.getByText('Typical', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Close', exact: true }).last().click()
+
+  await page.locator('main').getByRole('button', { name: 'Add a plan', exact: true }).first().click()
+  await page.getByLabel('What is it?').fill('Sunset walk')
+  await page.getByLabel('Location', { exact: true }).selectOption({ label: 'Lisbon' })
+  await page.getByLabel('Address or place').fill('Miradouro')
+  await page.getByRole('button', { name: 'Time', exact: true }).click()
+  await page.getByLabel('Start time', { exact: true }).fill('18:30')
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await page.getByRole('button', { name: 'View Sunset walk' }).click()
+  await expect(page.getByText(/Forecast · Lisbon/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Close', exact: true }).last().click()
+  const dayWeather = page.getByRole('group', { name: /Weather for/ }).first()
+  await expect(dayWeather.getByText('Lisbon')).toBeVisible()
+  await expect(dayWeather.getByText('Porto')).toHaveCount(0)
+
+  await page.locator('main').getByRole('button', { name: 'Add a plan', exact: true }).first().click()
+  await page.getByLabel('What is it?').fill('Unlocated plan')
+  await page.getByLabel('Date', { exact: true }).fill(localDayKey(1))
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(
+    page.getByText("Add a location to this day's plans to see the weather."),
+  ).toBeVisible()
+
+  await page.goto(`/calendar?date=${localDayKey(0)}`)
+  await expect(page.getByText(/72° \/ 57°/)).toBeVisible()
+
+  await page.getByRole('link', { name: 'Today', exact: true }).click()
+  await expect(page.getByText(/Lisbon \d+°/)).toBeVisible()
+  await expect(page.getByText(/Porto \d+°/)).toBeVisible()
+
+  await page.getByRole('link', { name: 'Trips' }).click()
+  await page.getByRole('link', { name: /Weather trip/ }).click()
+  await page.getByRole('link', { name: 'Open packing list for Weather trip' }).click()
+  await expect(page.getByText('Weather suggests')).toBeVisible()
+  await page.getByRole('button', { name: 'Umbrella', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Edit Umbrella' })).toBeVisible()
+  await page.getByRole('link', { name: 'Today', exact: true }).click()
+  await expect(page.getByText(/Lisbon \d+°/)).toBeVisible()
+
+  await expect
+    .poll(async () => {
+      await page.evaluate(async () => {
+        await navigator.serviceWorker.ready
+      })
+      return page.evaluate(() => Boolean(navigator.serviceWorker.controller))
+    })
+    .toBe(true)
+
+  await context.setOffline(true)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.getByText(/Lisbon \d+°/)).toBeVisible()
+  await context.setOffline(false)
+})
+
 test('adds another local profile and switches between them', async ({ page }) => {
   await onboard(page, 'Mo')
   await addLoosePlan(page, 'Mo plan')
@@ -392,7 +542,7 @@ test('searches trips, plans, places, confirmations, and notes', async ({ page })
 
   await page.getByLabel('Add a plan', { exact: true }).click()
   await page.getByLabel('What is it?').fill('Tea ceremony')
-  await page.getByLabel('Where').fill('Gion')
+  await page.getByLabel('Address or place').fill('Gion')
   await page.getByLabel('Confirmation number').fill('ABC123')
   await page.getByLabel('Notes').fill('Window seat with a garden view')
   await page.getByRole('button', { name: 'Add plan', exact: true }).click()

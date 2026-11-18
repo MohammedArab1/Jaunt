@@ -26,6 +26,7 @@ import { TIME_SLOT_META, TIME_SLOT_ORDER, compactDateRange, todayKey } from '@/l
 import { newId } from '@/lib/id'
 import { ATTACHMENT_ACCEPT, prepareAttachment } from '@/lib/images'
 import { createActivity, deleteAttachment, saveAttachment, updateActivity } from '@/lib/repo'
+import { tripDestinations } from '@/lib/tripDestinations'
 import { cn, cssVars, formatBytes, getErrorMessage, hexAlpha, normalizeUrl } from '@/lib/utils'
 import { useProfile } from '@/context/ProfileContext'
 import { useToast } from '@/context/ToastContext'
@@ -67,6 +68,7 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
     activity?.timeSlot ? 'slot' : activity?.startTime || activity?.endTime ? 'time' : 'anytime',
   )
   const [location, setLocation] = useState(activity?.location ?? '')
+  const [destinationId, setDestinationId] = useState(activity?.destinationId ?? '')
   const [tripId, setTripId] = useState(activity?.tripId ?? defaults?.tripId ?? '')
   const [confirmation, setConfirmation] = useState(activity?.confirmation ?? '')
   const [url, setUrl] = useState(activity?.url ?? '')
@@ -111,6 +113,12 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
   )
 
   const selectedTrip = trips.find((trip) => trip.id === tripId)
+  const destinationOptions = selectedTrip ? tripDestinations(selectedTrip) : []
+  const validDestinationId = destinationOptions.some(
+    (destination) => destination.id === destinationId,
+  )
+    ? destinationId
+    : ''
   const tripLocked = Boolean(
     activity && selectedTrip && (selectedTrip.role === 'member' || (selectedTrip.memberCount ?? 0) > 0),
   )
@@ -213,6 +221,8 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
       id: activity?.id ?? newId(),
       profileId: activity?.profileId ?? profile?.id ?? '',
       tripId: selectedTrip?.id ?? (tripId || undefined),
+      destinationId:
+        selectedTrip && validDestinationId ? validDestinationId : undefined,
       name: name.trim(),
       date,
       endDate: spansMultipleDays ? effectiveEndDate : undefined,
@@ -336,6 +346,77 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
             })}
           </div>
         </div>
+
+        <Field label="Part of a trip?" htmlFor="activity-trip">
+          <div className="relative">
+            <select
+              id="activity-trip"
+              value={selectedTrip?.id ?? ''}
+              onChange={(event) => {
+                setTripId(event.target.value)
+                setDestinationId('')
+              }}
+              className="field appearance-none pr-10 disabled:opacity-60"
+              disabled={tripLocked}
+            >
+              <option value="">No trip — a loose plan</option>
+              {trips.map((trip) => (
+                <option key={trip.id} value={trip.id}>
+                  {trip.emoji} {trip.name} · {compactDateRange(trip.startDate, trip.endDate)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          </div>
+          {tripDateError ? (
+            <p className="mt-1.5 text-xs font-semibold text-punch">{tripDateError}</p>
+          ) : selectedTrip ? (
+            <p className="mt-1.5 text-xs font-medium text-muted/70">
+              {selectedTrip.emoji} {compactDateRange(selectedTrip.startDate, selectedTrip.endDate)}
+              {tripLocked ? ' · Shared plans stay in their trip.' : ''}
+            </p>
+          ) : null}
+        </Field>
+
+        {selectedTrip && destinationOptions.length > 0 ? (
+          <Field label="Location" htmlFor="activity-destination">
+            <div className="relative">
+              <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <select
+                id="activity-destination"
+                value={validDestinationId}
+                onChange={(event) => setDestinationId(event.target.value)}
+                className="field appearance-none pl-10 pr-10"
+              >
+                <option value="">No location — no plan weather</option>
+                {destinationOptions.map((destination) => (
+                  <option key={destination.id} value={destination.id}>
+                    {destination.name}
+                    {destination.country ? `, ${destination.country}` : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            </div>
+            <p className="mt-1.5 text-xs font-medium text-muted/70">
+              Used to show the right weather for this plan.
+            </p>
+          </Field>
+        ) : null}
+
+        <Field label="Address or place" htmlFor="activity-location">
+          <div className="relative">
+            <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <input
+              id="activity-location"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              placeholder="Venue, address, or meeting point"
+              className="field pl-10"
+              maxLength={180}
+            />
+          </div>
+        </Field>
 
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-3">
@@ -495,48 +576,6 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
             </p>
           )}
         </div>
-
-        <Field label="Where" htmlFor="activity-location">
-          <div className="relative">
-            <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input
-              id="activity-location"
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-              placeholder="Venue, address, or meeting point"
-              className="field pl-10"
-              maxLength={180}
-            />
-          </div>
-        </Field>
-
-        <Field label="Part of a trip?" htmlFor="activity-trip">
-          <div className="relative">
-            <select
-              id="activity-trip"
-              value={selectedTrip?.id ?? ''}
-              onChange={(event) => setTripId(event.target.value)}
-              className="field appearance-none pr-10 disabled:opacity-60"
-              disabled={tripLocked}
-            >
-              <option value="">No trip — a loose plan</option>
-              {trips.map((trip) => (
-                <option key={trip.id} value={trip.id}>
-                  {trip.emoji} {trip.name} · {compactDateRange(trip.startDate, trip.endDate)}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          </div>
-          {tripDateError ? (
-            <p className="mt-1.5 text-xs font-semibold text-punch">{tripDateError}</p>
-          ) : selectedTrip ? (
-            <p className="mt-1.5 text-xs font-medium text-muted/70">
-              {selectedTrip.emoji} {compactDateRange(selectedTrip.startDate, selectedTrip.endDate)}
-              {tripLocked ? ' · Shared plans stay in their trip.' : ''}
-            </p>
-          ) : null}
-        </Field>
 
         <div className="space-y-4 rounded-[24px] border border-fg/[0.07] bg-fg/[0.022] p-4">
           <p className="eyebrow">Booking details</p>

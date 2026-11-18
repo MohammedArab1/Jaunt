@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import type { Activity, Attachment, PackingItem, Profile, Trip } from '@/types'
+import type { Activity, Attachment, PackingItem, Profile, Trip, TripDestination } from '@/types'
 import { newId } from './id'
 import { PACKING_ESSENTIALS } from './packing'
 import {
@@ -399,6 +399,7 @@ export async function createTrip(input: {
   profileId: string
   name: string
   destination?: string
+  destinations?: TripDestination[]
   startDate: string
   endDate: string
   color: string
@@ -411,6 +412,7 @@ export async function createTrip(input: {
     profileId: input.profileId,
     name: input.name,
     destination: input.destination,
+    destinations: input.destinations,
     startDate: input.startDate,
     endDate: input.endDate,
     color: input.color,
@@ -435,7 +437,16 @@ export async function updateTrip(trip: Trip): Promise<void> {
 export async function deleteTrip(tripId: string, deletePlans: boolean): Promise<void> {
   await db.transaction(
     'rw',
-    [db.trips, db.activities, db.packingItems, db.attachments, db.files, db.profiles, db.deletions],
+    [
+      db.trips,
+      db.activities,
+      db.packingItems,
+      db.attachments,
+      db.files,
+      db.weatherCache,
+      db.profiles,
+      db.deletions,
+    ],
     async () => {
       const trip = await db.trips.get(tripId)
       if (!trip) return
@@ -467,6 +478,7 @@ export async function deleteTrip(tripId: string, deletePlans: boolean): Promise<
       }
 
       await db.packingItems.where('tripId').equals(tripId).delete()
+      await db.weatherCache.where('tripId').equals(tripId).delete()
       await db.trips.delete(tripId)
       await queueDeletion(trip.profileId, 'trip', tripId)
     },
@@ -493,7 +505,17 @@ export async function updateProfileRecord(id: string, patch: Pick<Profile, 'name
 export async function deleteProfileData(profileId: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.profiles, db.trips, db.activities, db.packingItems, db.attachments, db.files, db.deletions, db.syncMeta],
+    [
+      db.profiles,
+      db.trips,
+      db.activities,
+      db.packingItems,
+      db.attachments,
+      db.files,
+      db.weatherCache,
+      db.deletions,
+      db.syncMeta,
+    ],
     async () => {
       const activities = await db.activities.where('profileId').equals(profileId).toArray()
       const activityIds = activities.map((activity) => activity.id)
@@ -505,6 +527,7 @@ export async function deleteProfileData(profileId: string): Promise<void> {
       await db.attachments.bulkDelete(attachments.map((attachment) => attachment.id))
       await db.activities.where('profileId').equals(profileId).delete()
       await db.packingItems.where('profileId').equals(profileId).delete()
+      await db.weatherCache.where('profileId').equals(profileId).delete()
       await db.trips.where('profileId').equals(profileId).delete()
       await db.deletions.where('profileId').equals(profileId).delete()
       await db.syncMeta.where('key').startsWith(`sync:${profileId}`).delete()

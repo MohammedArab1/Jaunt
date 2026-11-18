@@ -8,6 +8,7 @@ import type {
   Profile,
   SyncState,
   Trip,
+  WeatherCacheRecord,
 } from '@/types'
 
 class JauntDB extends Dexie {
@@ -17,6 +18,7 @@ class JauntDB extends Dexie {
   packingItems!: Table<PackingItem, string>
   attachments!: Table<Attachment, string>
   files!: Table<FileRecord, string>
+  weatherCache!: Table<WeatherCacheRecord, string>
   deletions!: Table<PendingDeletion, number>
   syncMeta!: Table<SyncState, string>
 
@@ -71,6 +73,18 @@ class JauntDB extends Dexie {
             if (!item.ownerUserId) item.ownerUserId = item.profileId
           })
       })
+
+    this.version(5).stores({
+      profiles: 'id, createdAt, kind',
+      trips: 'id, profileId, startDate, endDate',
+      activities: 'id, profileId, tripId, date, completed, [profileId+date], [profileId+tripId]',
+      packingItems: 'id, profileId, tripId, ownerUserId, [profileId+tripId]',
+      attachments: 'id, activityId, profileId, [profileId+activityId]',
+      files: 'id',
+      weatherCache: 'key, profileId, tripId',
+      deletions: '++id, profileId, entity, entityId',
+      syncMeta: 'key',
+    })
   }
 }
 

@@ -33,11 +33,22 @@ export interface TripTraveler {
   role: 'owner' | 'member'
 }
 
+export interface TripDestination {
+  id: string
+  name: string
+  country?: string
+  admin1?: string
+  latitude?: number
+  longitude?: number
+  timezone?: string
+}
+
 export interface Trip {
   id: string
   profileId: string
   name: string
   destination?: string
+  destinations?: TripDestination[]
   startDate: string
   endDate: string
   color: string
@@ -55,6 +66,7 @@ export interface Activity {
   id: string
   profileId: string
   tripId?: string
+  destinationId?: string
   name: string
   date: string
   endDate?: string
@@ -153,6 +165,7 @@ export interface SyncTrip {
   id: string
   name: string
   destination?: string | null
+  destinations?: TripDestination[] | null
   startDate: string
   endDate: string
   color: string
@@ -167,6 +180,7 @@ export interface SyncTrip {
 export interface SyncActivity {
   id: string
   tripId?: string | null
+  destinationId?: string | null
   name: string
   date: string
   endDate?: string | null
@@ -310,8 +324,70 @@ export interface CityOption {
   admin1?: string
   latitude: number
   longitude: number
+  timezone?: string
 }
 
 export interface GeocodeResponse {
   results: CityOption[]
+}
+
+export type WeatherMode = 'forecast' | 'historical' | 'climate'
+
+export interface WeatherDay {
+  date: string
+  mode: WeatherMode
+  available: boolean
+  weatherCode: number | null
+  tempMax: number | null
+  tempMin: number | null
+  precipProbability: number | null
+  precipSum: number | null
+  windMax: number | null
+  uvMax: number | null
+  sunrise: string | null
+  sunset: string | null
+  rainYears?: number | null
+  climateYears?: number | null
+}
+
+export interface WeatherHour {
+  time: string
+  temp: number
+  weatherCode: number
+  precipProbability: number | null
+  windSpeed: number | null
+  isDay: boolean
+}
+
+export interface WeatherCurrent {
+  time: string
+  temp: number
+  feelsLike: number | null
+  weatherCode: number
+  windSpeed: number | null
+  isDay: boolean
+}
+
+export interface WeatherLocation {
+  destinationId?: string
+  name: string
+  country?: string
+  admin1?: string
+  latitude: number
+  longitude: number
+  timezone: string
+  days: WeatherDay[]
+  hourly: WeatherHour[]
+  current: WeatherCurrent | null
+  fetchedAt: number
+  attribution: { name: string; url: string }
+}
+
+export interface WeatherCacheRecord {
+  key: string
+  profileId: string
+  tripId: string
+  destinationId: string
+  data: WeatherLocation
+  fetchedAt: number
 }

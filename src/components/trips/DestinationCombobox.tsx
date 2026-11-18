@@ -1,22 +1,28 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Loader2, MapPin, Plus, X } from 'lucide-react'
-import type { CityOption } from '@/types'
+import type { CityOption, TripDestination } from '@/types'
 import { api, isNetworkError } from '@/lib/api'
+import { newId } from '@/lib/id'
 import { cn } from '@/lib/utils'
 
 interface DestinationComboboxProps {
   id: string
-  value: string[]
-  onChange: (value: string[]) => void
+  value: TripDestination[]
+  onChange: (value: TripDestination[]) => void
 }
 
 const MAX_CITIES = 10
 
-function optionLabel(option: CityOption): string {
-  const parts = [option.name]
-  if (option.country) parts.push(option.country)
-  else if (option.admin1 && option.admin1 !== option.name) parts.push(option.admin1)
-  return parts.join(', ')
+function destinationFromOption(option: CityOption): TripDestination {
+  return {
+    id: option.id,
+    name: option.name,
+    country: option.country,
+    admin1: option.admin1,
+    latitude: option.latitude,
+    longitude: option.longitude,
+    timezone: option.timezone,
+  }
 }
 
 function optionDetail(option: CityOption): string {
@@ -89,24 +95,7 @@ export function DestinationCombobox({ id, value, onChange }: DestinationCombobox
     }
   }, [query])
 
-  const addCity = (raw: string) => {
-    const city = raw.trim().replace(/\s+/g, ' ')
-    if (!city) return
-
-    if (value.some((existing) => existing.toLowerCase() === city.toLowerCase())) {
-      setQuery('')
-      setOpen(false)
-      setActiveIndex(-1)
-      inputRef.current?.focus()
-      return
-    }
-
-    if (value.length >= MAX_CITIES) {
-      setError(`You can add up to ${MAX_CITIES} cities.`)
-      return
-    }
-
-    onChange([...value, city])
+  const resetSearch = () => {
     setQuery('')
     setOptions([])
     setError(null)
@@ -115,8 +104,41 @@ export function DestinationCombobox({ id, value, onChange }: DestinationCombobox
     inputRef.current?.focus()
   }
 
-  const removeCity = (city: string) => {
-    onChange(value.filter((item) => item !== city))
+  const addCity = (raw: string) => {
+    const city = raw.trim().replace(/\s+/g, ' ')
+    if (!city) return
+
+    if (value.some((existing) => existing.name.toLowerCase() === city.toLowerCase())) {
+      resetSearch()
+      return
+    }
+
+    if (value.length >= MAX_CITIES) {
+      setError(`You can add up to ${MAX_CITIES} cities.`)
+      return
+    }
+
+    onChange([...value, { id: newId(), name: city }])
+    resetSearch()
+  }
+
+  const addSuggestion = (option: CityOption) => {
+    if (value.some((existing) => existing.id === option.id)) {
+      resetSearch()
+      return
+    }
+
+    if (value.length >= MAX_CITIES) {
+      setError(`You can add up to ${MAX_CITIES} cities.`)
+      return
+    }
+
+    onChange([...value, destinationFromOption(option)])
+    resetSearch()
+  }
+
+  const removeCity = (id: string) => {
+    onChange(value.filter((item) => item.id !== id))
     inputRef.current?.focus()
   }
 
@@ -142,7 +164,7 @@ export function DestinationCombobox({ id, value, onChange }: DestinationCombobox
     if (event.key === 'Enter') {
       event.preventDefault()
       if (open && activeIndex >= 0 && options[activeIndex]) {
-        addCity(optionLabel(options[activeIndex]))
+        addSuggestion(options[activeIndex])
       } else {
         addCity(query)
       }
@@ -167,7 +189,7 @@ export function DestinationCombobox({ id, value, onChange }: DestinationCombobox
 
     if (event.key === 'Backspace' && !query && value.length > 0) {
       event.preventDefault()
-      removeCity(value[value.length - 1])
+      removeCity(value[value.length - 1].id)
     }
   }
 
@@ -178,14 +200,16 @@ export function DestinationCombobox({ id, value, onChange }: DestinationCombobox
 
         {value.map((city) => (
           <span
-            key={city}
+            key={city.id}
             className="inline-flex max-w-full items-center gap-1 rounded-full bg-coral/10 px-2.5 py-1 text-[10px] font-extrabold text-coral"
           >
-            <span className="truncate">{city}</span>
+            <span className="truncate" title={city.country ? `${city.name}, ${city.country}` : city.name}>
+              {city.name}
+            </span>
             <button
               type="button"
-              onClick={() => removeCity(city)}
-              aria-label={`Remove ${city}`}
+              onClick={() => removeCity(city.id)}
+              aria-label={`Remove ${city.name}`}
               className="shrink-0 rounded-full p-0.5 transition hover:bg-coral/20"
             >
               <X className="h-3 w-3" />
@@ -232,7 +256,7 @@ export function DestinationCombobox({ id, value, onChange }: DestinationCombobox
               aria-selected={index === activeIndex}
               onMouseEnter={() => setActiveIndex(index)}
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => addCity(optionLabel(option))}
+              onClick={() => addSuggestion(option)}
               className={cn(
                 'flex w-full items-start gap-2 px-3.5 py-2.5 text-left transition',
                 index === activeIndex ? 'bg-coral/10' : 'hover:bg-fg/[0.04]',

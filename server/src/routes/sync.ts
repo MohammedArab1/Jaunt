@@ -31,10 +31,21 @@ const timeString = z
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time.')
   .nullish()
 
+const destinationSchema = z.object({
+  id: z.string().min(1).max(100),
+  name: z.string().min(1).max(200),
+  country: z.string().max(200).nullish(),
+  admin1: z.string().max(200).nullish(),
+  latitude: z.number().finite().min(-90).max(90).nullish(),
+  longitude: z.number().finite().min(-180).max(180).nullish(),
+  timezone: z.string().max(100).nullish(),
+})
+
 const tripSchema = z.object({
   id: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
   destination: z.string().max(300).nullish(),
+  destinations: z.array(destinationSchema).max(10).nullish(),
   startDate: dateString,
   endDate: dateString,
   color: z.string().min(1).max(50),
@@ -47,6 +58,7 @@ const tripSchema = z.object({
 const activitySchema = z.object({
   id: z.string().min(1).max(100),
   tripId: z.string().max(100).nullish(),
+  destinationId: z.string().max(100).nullish(),
   name: z.string().min(1).max(200),
   date: dateString,
   endDate: dateString.nullish(),
@@ -120,11 +132,13 @@ async function upsertTrip(
 ): Promise<void> {
   await client.query(
     `INSERT INTO trips
-       (user_id, id, name, destination, start_date, end_date, color, emoji, notes, created_at, updated_at, revision)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, nextval('sync_revision_seq'))
+       (user_id, id, name, destination, destinations, start_date, end_date, color, emoji, notes,
+        created_at, updated_at, revision)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, nextval('sync_revision_seq'))
      ON CONFLICT (user_id, id) DO UPDATE SET
        name = EXCLUDED.name,
        destination = EXCLUDED.destination,
+       destinations = COALESCE(EXCLUDED.destinations, trips.destinations),
        start_date = EXCLUDED.start_date,
        end_date = EXCLUDED.end_date,
        color = EXCLUDED.color,
@@ -138,6 +152,7 @@ async function upsertTrip(
       trip.id,
       trip.name,
       trip.destination ?? null,
+      trip.destinations ? JSON.stringify(trip.destinations) : null,
       trip.startDate,
       trip.endDate,
       trip.color,
@@ -156,11 +171,13 @@ async function upsertActivity(
 ): Promise<void> {
   await client.query(
     `INSERT INTO activities
-       (user_id, id, trip_id, name, date, end_date, start_time, end_time, time_slot, location,
-        type, notes, confirmation, url, completed, sort_order, created_at, updated_at, revision)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, nextval('sync_revision_seq'))
+       (user_id, id, trip_id, destination_id, name, date, end_date, start_time, end_time,
+        time_slot, location, type, notes, confirmation, url, completed, sort_order,
+        created_at, updated_at, revision)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, nextval('sync_revision_seq'))
      ON CONFLICT (user_id, id) DO UPDATE SET
        trip_id = EXCLUDED.trip_id,
+       destination_id = EXCLUDED.destination_id,
        name = EXCLUDED.name,
        date = EXCLUDED.date,
        end_date = EXCLUDED.end_date,
@@ -181,6 +198,7 @@ async function upsertActivity(
       ownerId,
       activity.id,
       activity.resolvedTripId,
+      activity.destinationId ?? null,
       activity.name,
       activity.date,
       activity.endDate ?? null,
@@ -506,8 +524,8 @@ router.post(
       await applyDeletions(client, userId, input.deletions)
 
       const tripsResult = await client.query(
-        `SELECT t.id, t.name, t.destination, t.start_date::text AS start_date, t.end_date::text AS end_date,
-                t.color, t.emoji, t.notes, t.created_at, t.updated_at, t.revision,
+        `SELECT t.id, t.name, t.destination, t.destinations, t.start_date::text AS start_date,
+                t.end_date::text AS end_date, t.color, t.emoji, t.notes, t.created_at, t.updated_at, t.revision,
                 CASE WHEN t.user_id = $1 THEN 'owner' ELSE 'member' END AS role,
                 (SELECT COUNT(*)::int FROM trip_members tm
                  WHERE tm.trip_id = t.id AND tm.status = 'accepted') AS member_count
@@ -539,9 +557,10 @@ router.post(
       )
 
       const activitiesResult = await client.query(
-        `SELECT a.id, a.trip_id, a.name, a.date::text AS date, a.end_date::text AS end_date,
-                a.start_time, a.end_time, a.time_slot, a.location, a.type, a.notes,
-                a.confirmation, a.url, a.completed, a.sort_order, a.created_at, a.updated_at, a.revision
+        `SELECT a.id, a.trip_id, a.destination_id, a.name, a.date::text AS date,
+                a.end_date::text AS end_date, a.start_time, a.end_time, a.time_slot,
+                a.location, a.type, a.notes, a.confirmation, a.url, a.completed,
+                a.sort_order, a.created_at, a.updated_at, a.revision
          FROM activities a
          WHERE a.revision > $2 AND (
            (a.trip_id IS NULL AND a.user_id = $1) OR EXISTS (
@@ -621,6 +640,7 @@ router.post(
           id: row.id,
           name: row.name,
           destination: row.destination,
+          destinations: row.destinations,
           startDate: row.start_date,
           endDate: row.end_date,
           color: row.color,
@@ -646,6 +666,7 @@ router.post(
         return {
           id: row.id,
           tripId: row.trip_id,
+          destinationId: row.destination_id,
           name: row.name,
           date: row.date,
           endDate: row.end_date,

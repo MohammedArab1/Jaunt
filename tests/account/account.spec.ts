@@ -376,7 +376,7 @@ test('creates a read-only public link and revokes it', async ({ browser }) => {
 
     await owner.getByRole('button', { name: 'Add a plan', exact: true }).first().click()
     await owner.getByLabel('What is it?').fill('Sunset cruise')
-    await owner.getByLabel('Where').fill('Marina Bay')
+    await owner.getByLabel('Address or place').fill('Marina Bay')
     await owner.getByLabel('Confirmation number').fill('SECRET123')
     await owner.getByLabel('Notes').fill('Bring a jacket')
     await owner.getByRole('button', { name: 'Add plan', exact: true }).click()

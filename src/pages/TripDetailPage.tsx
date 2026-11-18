@@ -33,6 +33,9 @@ import {
 import { deleteTrip, sortDayByTime } from '@/lib/repo'
 import { hexAlpha, pluralize } from '@/lib/utils'
 import { useToday } from '@/hooks/useToday'
+import { useTripWeather } from '@/hooks/useTripWeather'
+import { useWeatherUnits } from '@/lib/weatherUnits'
+import { tripDestinations } from '@/lib/tripDestinations'
 import { useProfile } from '@/context/ProfileContext'
 import { useAuth } from '@/context/AuthContext'
 import { useSync } from '@/context/SyncContext'
@@ -46,6 +49,8 @@ import { PlanList } from '@/components/plan/PlanList'
 import { TripForm } from '@/components/trips/TripForm'
 import { TripMembersSheet } from '@/components/trips/TripMembersSheet'
 import { TripShareSheet } from '@/components/trips/TripShareSheet'
+import { TripWeatherSection } from '@/components/weather/TripWeatherSection'
+import { DayWeatherCard } from '@/components/weather/DayWeatherCard'
 
 export function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>()
@@ -79,6 +84,9 @@ export function TripDetailPage() {
     [tripId],
     [] as PackingItem[],
   )
+
+  const weather = useTripWeather(trip)
+  const [weatherUnits] = useWeatherUnits()
 
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -152,6 +160,7 @@ export function TripDetailPage() {
   const packingDone = myPackingItems.filter((item) => item.packed).length
   const packingProgress = packingTotal === 0 ? 0 : Math.round((packingDone / packingTotal) * 100)
   const isPast = today > trip.endDate
+  const destinations = tripDestinations(trip)
   const status = tripCountdownLabel(trip.startDate, trip.endDate, today)
   const isAccount = mode === 'account'
   const isOwner = trip.role !== 'member'
@@ -370,6 +379,14 @@ export function TripDetailPage() {
         <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-fg" />
       </Link>
 
+      <TripWeatherSection
+        trip={trip}
+        locations={weather.locations}
+        errors={weather.errors}
+        loading={weather.loading}
+        refresh={weather.refresh}
+      />
+
       <div className="mt-8 flex items-end justify-between">
         <div>
           <p className="eyebrow">The days</p>
@@ -433,6 +450,16 @@ export function TripDetailPage() {
                   </button>
                 </div>
               </div>
+
+              {!isPast ? (
+                <DayWeatherCard
+                  locations={weather.locations}
+                  date={date}
+                  units={weatherUnits}
+                  activities={dayActivities}
+                  destinations={destinations}
+                />
+              ) : null}
 
               {dayActivities.length > 0 ? (
                 <PlanList

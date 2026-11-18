@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS trips (
   color text NOT NULL,
   emoji text NOT NULL,
   notes text,
+  destinations jsonb,
   created_at bigint NOT NULL,
   updated_at bigint NOT NULL,
   revision bigint NOT NULL DEFAULT nextval('sync_revision_seq'),
@@ -41,10 +42,14 @@ CREATE INDEX IF NOT EXISTS trips_user_revision_idx ON trips(user_id, revision);
 ALTER TABLE trips ADD COLUMN IF NOT EXISTS share_token text;
 CREATE UNIQUE INDEX IF NOT EXISTS trips_share_token_idx ON trips(share_token) WHERE share_token IS NOT NULL;
 
+-- Structured destinations (name, coordinates, timezone) for weather and maps.
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS destinations jsonb;
+
 CREATE TABLE IF NOT EXISTS activities (
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   id text NOT NULL,
   trip_id text,
+  destination_id text,
   name text NOT NULL,
   date date NOT NULL,
   end_date date,
@@ -68,9 +73,11 @@ CREATE INDEX IF NOT EXISTS activities_user_trip_idx ON activities(user_id, trip_
 CREATE INDEX IF NOT EXISTS activities_user_date_idx ON activities(user_id, date);
 CREATE INDEX IF NOT EXISTS activities_trip_revision_idx ON activities(trip_id, revision);
 
--- Add columns for databases created before multi-day plans and day-part slots.
+-- Add columns for databases created before multi-day plans, day-part slots,
+-- and trip-destination-linked plans.
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS end_date date;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS time_slot text;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS destination_id text;
 
 CREATE UNIQUE INDEX IF NOT EXISTS trips_global_id_idx ON trips(id);
 CREATE UNIQUE INDEX IF NOT EXISTS activities_global_id_idx ON activities(id);

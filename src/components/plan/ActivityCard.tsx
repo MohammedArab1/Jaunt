@@ -10,6 +10,7 @@ import {
   formatTimeValue,
 } from '@/lib/dates'
 import { cn, cssVars, hexAlpha } from '@/lib/utils'
+import { ActivityWeatherLine } from '@/components/weather/ActivityWeatherLine'
 
 interface ActivityCardProps {
   activity: Activity
@@ -18,6 +19,7 @@ interface ActivityCardProps {
   onOpen: () => void
   onToggle: (completed: boolean) => void
   sortable?: boolean
+  showWeather?: boolean
 }
 
 export function ActivityCard({
@@ -27,6 +29,7 @@ export function ActivityCard({
   onOpen,
   onToggle,
   sortable = false,
+  showWeather = false,
 }: ActivityCardProps) {
   const meta = activityMeta(activity.type)
   const Icon = meta.icon
@@ -134,6 +137,10 @@ export function ActivityCard({
                 <MapPin className="mt-px h-3 w-3 shrink-0" />
                 <span className="line-clamp-2">{activity.location}</span>
               </span>
+            ) : null}
+
+            {showWeather && trip && activity.destinationId ? (
+              <ActivityWeatherLine activity={activity} trip={trip} />
             ) : null}
 
             {trip || attachmentCount > 0 || activity.confirmation || activitySpansMultipleDays(activity) ? (

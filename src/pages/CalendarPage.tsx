@@ -296,6 +296,7 @@ export function CalendarPage() {
               profileId={profile.id}
               activities={selectedSorted}
               tripsById={tripsById}
+              showWeather
             />
           ) : (
             <div className="rounded-2xl border border-dashed border-fg/12 px-5 py-8 text-center">

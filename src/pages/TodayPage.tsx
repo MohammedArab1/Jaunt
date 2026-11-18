@@ -42,6 +42,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Avatar } from '@/components/ui/Avatar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PlanList } from '@/components/plan/PlanList'
+import { TripWeatherLine } from '@/components/weather/TripWeatherLine'
 
 function greetingFor(date: Date): string {
   const hour = date.getHours()
@@ -178,6 +179,7 @@ export function TodayPage() {
                   {trip.name}
                   <span className="font-bold text-muted"> · {tripCountdownLabel(trip.startDate, trip.endDate, today)}</span>
                 </span>
+                <TripWeatherLine trip={trip} />
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
             </Link>

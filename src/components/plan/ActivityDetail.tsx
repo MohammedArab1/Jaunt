@@ -35,6 +35,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { TypeBadge } from '@/components/ui/TypeBadge'
 import { AttachmentTile } from '@/components/attachments/AttachmentTile'
 import { AttachmentViewer } from '@/components/attachments/AttachmentViewer'
+import { PlanWeather } from '@/components/weather/PlanWeather'
 
 interface ActivityDetailProps {
   activityId: string
@@ -267,6 +268,8 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
               </div>
             </div>
           </div>
+
+          <PlanWeather activity={activity} trip={trip} />
 
           {activity.confirmation ? (
             <div className="flex items-center gap-3 rounded-2xl border border-fg/[0.08] bg-fg/[0.03] px-4 py-3">

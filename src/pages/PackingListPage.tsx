@@ -1,12 +1,14 @@
 import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Eye, EyeOff, Loader2, Luggage, Pencil, Plus, Sparkles } from 'lucide-react'
+import { Check, CloudSun, Eye, EyeOff, Loader2, Luggage, Pencil, Plus, Sparkles } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { db } from '@/db'
 import type { PackingCategory, PackingItem, TripTraveler } from '@/types'
 import { PACKING_CATEGORIES, packingCategoryRank } from '@/lib/packing'
 import { createPackingItem, seedPackingEssentials, setPackingItemPacked } from '@/lib/repo'
+import { buildPackingSuggestions, type PackingSuggestion } from '@/lib/packingSuggestions'
 import { cn, getErrorMessage, hexAlpha, pluralize } from '@/lib/utils'
+import { useTripWeather } from '@/hooks/useTripWeather'
 import { useProfile } from '@/context/ProfileContext'
 import { useToast } from '@/context/ToastContext'
 import { Page } from '@/components/ui/Page'
@@ -97,6 +99,7 @@ export function PackingListPage() {
   const [category, setCategory] = useState<PackingCategory>('other')
   const [adding, setAdding] = useState(false)
   const [seeding, setSeeding] = useState(false)
+  const [suggestionBusy, setSuggestionBusy] = useState(false)
   const [hidePacked, setHidePacked] = useState(false)
   const [editing, setEditing] = useState<PackingItem | null>(null)
 
@@ -112,6 +115,12 @@ export function PackingListPage() {
         : Promise.resolve([] as PackingItem[]),
     [tripId],
     [] as PackingItem[],
+  )
+
+  const weather = useTripWeather(trip)
+  const weatherSuggestions = useMemo(
+    () => buildPackingSuggestions(weather.locations),
+    [weather.locations],
   )
 
   const sorted = useMemo(
@@ -233,6 +242,17 @@ export function PackingListPage() {
   const allPacked = total > 0 && done === total
   const SelectedIcon = PACKING_ICONS[category]
   const someHidden = hidePacked && total > 0 && groups.length === 0
+  const availableSuggestions = isOwn
+    ? weatherSuggestions.filter(
+        (suggestion) =>
+          !selectedSorted.some(
+            (item) => item.name.trim().toLowerCase() === suggestion.name.trim().toLowerCase(),
+          ),
+      )
+    : []
+  const suggestionNote = [...new Set(availableSuggestions.map((item) => item.reason))]
+    .slice(0, 2)
+    .join(' · ')
 
   const selectTraveler = (travelerId: string) => {
     const next = new URLSearchParams(searchParams)
@@ -274,6 +294,44 @@ export function PackingListPage() {
       toast(getErrorMessage(cause), 'error', 5000)
     } finally {
       setSeeding(false)
+    }
+  }
+
+  const addSuggestion = async (suggestion: PackingSuggestion) => {
+    setSuggestionBusy(true)
+    try {
+      await createPackingItem({
+        profileId: profile.id,
+        tripId: trip.id,
+        ownerUserId: profile.id,
+        name: suggestion.name,
+        category: suggestion.category,
+      })
+    } catch (cause) {
+      toast(getErrorMessage(cause), 'error', 5000)
+    } finally {
+      setSuggestionBusy(false)
+    }
+  }
+
+  const addAllSuggestions = async () => {
+    if (availableSuggestions.length === 0) return
+    setSuggestionBusy(true)
+    try {
+      for (const suggestion of availableSuggestions) {
+        await createPackingItem({
+          profileId: profile.id,
+          tripId: trip.id,
+          ownerUserId: profile.id,
+          name: suggestion.name,
+          category: suggestion.category,
+        })
+      }
+      toast(`Added ${pluralize(availableSuggestions.length, 'suggestion')}.`, 'success')
+    } catch (cause) {
+      toast(getErrorMessage(cause), 'error', 5000)
+    } finally {
+      setSuggestionBusy(false)
     }
   }
 
@@ -404,6 +462,51 @@ export function PackingListPage() {
           </>
         ) : null}
       </section>
+
+      {isOwn && availableSuggestions.length > 0 ? (
+        <section className="mt-5 rounded-[24px] border border-sky/20 bg-sky/[0.06] p-4">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-sky/20 bg-sky/10 text-sky">
+              <CloudSun className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="eyebrow text-sky/80">Weather suggests</p>
+                  <p className="mt-1 text-[11px] font-bold leading-relaxed text-muted">
+                    {suggestionNote}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void addAllSuggestions()}
+                  disabled={suggestionBusy}
+                  className="btn btn-secondary h-8 shrink-0 px-3 text-[9px]"
+                >
+                  {suggestionBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  Add all
+                </button>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {availableSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.name}
+                    type="button"
+                    onClick={() => void addSuggestion(suggestion)}
+                    disabled={suggestionBusy}
+                    title={suggestion.reason}
+                    className="inline-flex items-center gap-1 rounded-full border border-sky/20 bg-sky/10 px-2.5 py-1 text-[10px] font-extrabold text-sky transition hover:bg-sky/15 disabled:opacity-50"
+                  >
+                    <Plus className="h-2.5 w-2.5" />
+                    {suggestion.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {isOwn ? (
         <section className="mt-6 rounded-[26px] border border-fg/[0.08] bg-fg/[0.025] p-4">

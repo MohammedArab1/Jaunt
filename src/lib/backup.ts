@@ -160,7 +160,16 @@ export async function restoreBackup(text: string): Promise<Backup> {
 
   await db.transaction(
     'rw',
-    [db.profiles, db.trips, db.activities, db.packingItems, db.attachments, db.files, db.deletions],
+    [
+      db.profiles,
+      db.trips,
+      db.activities,
+      db.packingItems,
+      db.attachments,
+      db.files,
+      db.weatherCache,
+      db.deletions,
+    ],
     async () => {
       const existingProfiles = await db.profiles.toArray()
       const guestIds = existingProfiles
@@ -176,6 +185,7 @@ export async function restoreBackup(text: string): Promise<Backup> {
         }
         await db.activities.where('profileId').anyOf(guestIds).delete()
         await db.packingItems.where('profileId').anyOf(guestIds).delete()
+        await db.weatherCache.where('profileId').anyOf(guestIds).delete()
         await db.trips.where('profileId').anyOf(guestIds).delete()
         await db.deletions.where('profileId').anyOf(guestIds).delete()
         await db.profiles.bulkDelete(guestIds)

@@ -7,7 +7,7 @@ Jaunt is a self-hosted, installable day and trip planner. It opens on today, kee
 It works two ways:
 
 - **Signed in** — email + password accounts stored in PostgreSQL. Trips, plans, packing lists, completions, and ticket files sync across your devices, with an offline cache and queued changes.
-- **Offline / guest mode** — no account, no server round-trips. Local profiles and data live only in this browser.
+- **Offline / guest mode** — no account and no server-side data. Local profiles, trips, and plans live only in this browser. Optional city search and weather still use the read-only Open-Meteo proxy when online.
 
 Built to live on a phone home screen.
 
@@ -21,8 +21,9 @@ Built to live on a phone home screen.
 - **Offline-first** — fresh plans and edits are saved immediately in IndexedDB even when the network is down. They sync automatically when you reconnect.
 - **Multi-day trips** — name a trip, pick the dates, choose a color and emoji, then build it out day by day. Multi-day plans show their start time on the first day, their end time on the last day, and appear as any-time in between. Day-part timing applies only to the first instance.
 - **Multi-city destinations** — search live city suggestions through a server-side Open-Meteo proxy, pick several cities, or type a custom destination that isn’t listed. Suggestions need a connection; typed cities always work.
-- **Packing lists** — each traveler gets their own per-trip checklist with categories, quantities, packed progress, and a one-tap essentials starter. Select whose list to view; you can edit yours, and everyone else’s stays read-only. Lists work offline.
-- **Rich plans** — name, date, start/end time, location, type, notes, confirmation number, link, and multiple photo/PDF tickets. Plans can use a specific time, a day-part (**Early morning**, **Morning**, **Afternoon**, or **Evening**), or no time.
+- **Packing lists** — each traveler gets their own per-trip checklist with categories, quantities, packed progress, and a one-tap essentials starter. Select whose list to view; you can edit yours, and everyone else’s stays read-only. Lists work offline, and weather can suggest rain, cold, heat, UV, wind, or snow items for your own list.
+- **Trip weather** — per-city weather for every trip date: daily forecasts within 15 days, 5-year climate averages for dates beyond that, recorded weather for past days, and near-term hourly detail. The top trip section shows a per-city trip average; open it for day-by-day detail. Each day gets a compact weather strip before its plans based on the locations selected on that day’s plans; all relevant cities are shown and may wrap onto multiple lines. Single-destination trips use that destination automatically. Day weather is hidden for past trips, and plan cards in the calendar can show weather for their selected destination. A °C/°F toggle and offline cache are included. Powered by Open-Meteo.
+- **Rich plans** — name, date, start/end time, trip destination, address/place, type, notes, confirmation number, link, and multiple photo/PDF tickets. Plans can use a specific time, a day-part (**Early morning**, **Morning**, **Afternoon**, or **Evening**), or no time.
 - **Time-first ordering** — timed and day-part plans interleave chronologically by default. Drag a plan to create a custom order; a **Custom order** chip appears and **Sort by time** returns to chronological order. Editing a time, day-part, or date automatically returns the affected day to time order.
 - **Cross things off** — tap the circle; completed plans fade and progress updates.
 - **Move things around** — drag the grip handle for a custom order, use **Sort by time** to restore chronological order, or edit a plan’s dates to move it.
@@ -367,7 +368,7 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-Covers: offline onboarding, local profiles, plan creation, drag/custom ordering, automatic time reordering, Early morning/Morning/Afternoon/Evening day-parts, specific-time and day-part interleaving, multiple active trips on the dashboard, multi-day plan instance timing, completion persistence, offline reload, trips, multi-city destinations, packing lists and essentials, guest backups/restore, empty time fields, light mode persistence, global search across trips/plans/packing/places/confirmations/notes, and the sign-in gate with “Continue offline.”
+Covers: offline onboarding, local profiles, plan creation, drag/custom ordering, automatic time reordering, Early morning/Morning/Afternoon/Evening day-parts, specific-time and day-part interleaving, multiple active trips on the dashboard, multi-day plan instance timing, completion persistence, offline reload, trips, multi-city destinations, packing lists and essentials, packing suggestions from weather, per-city trip averages and plan-driven daily weather cards with multi-city filtering and location nudges, climate labels, destination-linked plan weather, calendar weather lines, cached weather offline, guest backups/restore, empty time fields, light mode persistence, global search across trips/plans/packing/places/confirmations/notes, and the sign-in gate with “Continue offline.”
 
 ### Account / full-stack suite
 
@@ -388,16 +389,17 @@ Type-checking is part of `npm run build`; run `npm run typecheck` for the client
 
 ```
 src/                    React app
-  components/           UI, plans, trips, navigation, sheets, sync banner, members
+  components/           UI, plans, trips, packing, weather, navigation, sheets, sync banner, members
   context/              auth, profiles, sync, theme, toasts, install prompt, activity sheets
-  hooks/                today/now clocks
-  lib/                  API client, sync engine, repos, backup, image prep, dates
+  hooks/                today/now clocks, trip weather
+  lib/                  API client, sync engine, repos, backup, image prep, dates, weather
   pages/                Auth, Today, Calendar, Search, Trips, Trip detail, Public trip, Settings, Onboarding
   db.ts                 Dexie schema (IndexedDB, offline cache)
   types.ts              shared client/sync types
 server/                 Node + Express API
   src/auth.ts           sessions, password hashing, auth middleware
-  src/routes/           auth, sync, attachments, sharing, public share links, city search
+  src/routes/           auth, sync, attachments, sharing, public share links, city search, weather
+  src/weather.ts        Open-Meteo forecast, archive, and climate-average service
   src/schema.ts         PostgreSQL schema + startup migrations
   src/db.ts             pg pool + retry logic
   src/tripAccess.ts     shared-trip access, tombstones, revision bumps
@@ -414,8 +416,9 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 
 - React 19 + TypeScript + Vite
 - Tailwind CSS 4
-- Dexie / IndexedDB for offline data and attachment cache
+- Dexie / IndexedDB for offline data, attachment cache, and weather cache
 - dnd-kit for reorderable plans
+- Open-Meteo for city search, forecasts, historical weather, and climate averages
 - Radix Dialog for accessible sheets
 - Theme tokens + `theme-init.js` for instant light/dark/accent loading
 - Node 24 + Express 5 + `pg`
@@ -461,6 +464,11 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 - **Trip invitations are in-app only.** No email is sent; the invited person must already have an account and open their Trips page.
 - **Public links are unlisted, not password-protected.** Anyone with the URL can view the itinerary. Revoke the link when you no longer want it shared.
 - **Live city suggestions need a connection.** The destination field always accepts typed cities, but suggestions are fetched through the server from [Open-Meteo](https://open-meteo.com/) and are unavailable offline.
+- **Weather has a 15-day forecast horizon.** Dates beyond that use a five-year climate average and are clearly labeled as typical weather, not a forecast. Weather is requested in ranges of up to 60 days.
+- **Multi-city day weather follows plan locations.** A day shows only the cities used by that day’s plans, laid out on one or more lines. Days with plans but no locations show a short nudge when the trip has multiple destinations.
+- **Plans without a trip location show no weather.** The free-text address is not used to guess a city. Single-destination trips still show that destination’s day weather.
+- **Weather needs a connection to refresh.** The last successful response is cached and shown offline with its update time. Public share pages do not show weather; packing lists use weather only for item suggestions.
+- **Weather data comes from Open-Meteo.** Forecasts and climate averages are best-effort, not official alerts or guarantees.
 - **Owners manage the trip shell.** Only the owner can rename/redate a trip, manage members, or delete it; members can edit the itinerary itself.
 - **Theme settings are per browser.** They do not sync between devices or accounts.
 - **Guest data is local to one browser.** Use backup/restore or import into an account to move it.
