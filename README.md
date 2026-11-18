@@ -107,7 +107,50 @@ caddy run --config Caddyfile
 
 Caddy gets a certificate automatically and proxies to the web container. A Cloudflare Tunnel or Tailscale Serve also works for HTTPS.
 
-Keep `COOKIE_SECURE=true` in production so session cookies are only sent over HTTPS. The app and API are intentionally same-origin; keep both under the same hostname.
+Keep `COOKIE_SECURE=true` in production so session cookies are only sent over HTTPS. By default the app and API are same-origin; see below if you want to host them separately.
+
+### Deploying the frontend separately
+
+The web image can point at an API on another origin, either at container start or at build time.
+
+At runtime (no rebuild needed when the backend changes):
+
+```bash
+docker build -t jaunt-web .
+docker run -d -p 8080:80 \
+  -e API_BASE_URL=https://api.example.com \
+  jaunt-web
+```
+
+`API_BASE_URL` is the API **origin**; the app appends `/api/...` to it. Leave it empty for the normal same-origin setup. The container writes this value into `/config.js` at startup, so changing the variable only needs a container restart, not a rebuild.
+
+On the API, allow the frontend origin and adjust the session cookie:
+
+```bash
+CORS_ORIGIN=https://app.example.com
+COOKIE_SAMESITE=lax        # default; works for same-site hosts
+COOKIE_SECURE=true
+```
+
+- `CORS_ORIGIN` accepts a comma-separated list of origins.
+- `COOKIE_SAMESITE=lax` works when both hosts share a registrable domain (`app.example.com` → `api.example.com`).
+- Use `COOKIE_SAMESITE=none` for unrelated domains. It requires `COOKIE_SECURE=true` and HTTPS.
+- `API_UPSTREAM` optionally changes the nginx target for same-origin `/api` requests (default `http://api:3100`).
+
+For purely static hosting, set the build-time fallback instead:
+
+```bash
+VITE_API_BASE_URL=https://api.example.com npm run build
+# or: docker build --build-arg VITE_API_BASE_URL=https://api.example.com -t jaunt-web .
+```
+
+You can also ship a `config.js` next to `index.html`:
+
+```js
+window.__JAUNT_CONFIG__ = { apiBaseUrl: 'https://api.example.com' }
+```
+
+Public share links still use the frontend origin (`https://app.example.com/share/...`).
 
 ### Deploying with Ansible
 
@@ -403,7 +446,8 @@ server/                 Node + Express API
   src/schema.ts         PostgreSQL schema + startup migrations
   src/db.ts             pg pool + retry logic
   src/tripAccess.ts     shared-trip access, tombstones, revision bumps
-deploy/nginx.conf       static app + /api reverse proxy + caching
+deploy/nginx.conf.template  static app + /api reverse proxy + caching
+deploy/40-jaunt-config.sh   container startup config from env vars
 Dockerfile              web image
 server/Dockerfile       API image
 docker-compose.yml      web + api + db
@@ -438,7 +482,12 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 | `WEB_PORT` | web | Public host port (default `8080`). |
 | `DB_PORT` | db | Local-only host port mapped for development (default `55432`). |
 | `COOKIE_SECURE` | api | `true` for HTTPS, `false` for plain HTTP localhost. |
+| `COOKIE_SAMESITE` | api | `lax` (default), `strict`, or `none` for cross-site frontends. |
+| `CORS_ORIGIN` | api | Comma-separated frontend origins allowed to call the API with credentials. |
 | `SESSION_DAYS` | api | Session lifetime in days (default `90`). |
+| `API_BASE_URL` | web | Runtime API origin for a separately deployed frontend. Empty = same-origin. |
+| `VITE_API_BASE_URL` | web build | Build-time API origin for static hosting. Runtime config wins. |
+| `API_UPSTREAM` | web | nginx upstream for same-origin `/api` requests (default `http://api:3100`). |
 | `PORT` | api | API port, default `3100` in development. |
 | `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` | api | Standard PostgreSQL connection settings. Compose sets these; local dev falls back to the root `.env`. |
 | `BCRYPT_ROUNDS` | api | bcrypt cost (default `12`). |

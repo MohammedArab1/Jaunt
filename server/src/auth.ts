@@ -36,7 +36,7 @@ function tokenHash(token: string): string {
 function cookieOptions() {
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
+    sameSite: config.cookieSameSite,
     secure: config.cookieSecure,
     path: '/',
     maxAge: config.sessionDays * 24 * 60 * 60 * 1000,
@@ -102,7 +102,7 @@ export async function startSession(res: Response, userId: string): Promise<void>
 export function clearSessionCookie(res: Response): void {
   res.clearCookie(SESSION_COOKIE, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: config.cookieSameSite,
     secure: config.cookieSecure,
     path: '/',
   })

@@ -52,6 +52,20 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,woff2,webmanifest,wasm}'],
+        // Generated at container start; must not be frozen into the service worker.
+        globIgnores: ['config.js'],
+        runtimeCaching: [
+          {
+            // Keep the runtime config fresh, but available on offline reloads.
+            urlPattern: /\/config\.js$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'jaunt-runtime-config',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 1 },
+            },
+          },
+        ],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         clientsClaim: true,

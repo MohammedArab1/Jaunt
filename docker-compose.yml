@@ -30,7 +30,9 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:?Create a .env from .env.example and set POSTGRES_PASSWORD}
       PGDATABASE: jaunt
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
       SESSION_DAYS: ${SESSION_DAYS:-90}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
     depends_on:
       db:
         condition: service_healthy
@@ -41,6 +43,12 @@ services:
       context: .
       args:
         CACHEBUST: ${CACHEBUST:-0}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    environment:
+      # Point the browser at another API origin; empty keeps same-origin /api.
+      API_BASE_URL: ${API_BASE_URL:-}
+      # Backend used by nginx for same-origin /api requests (default: api service).
+      API_UPSTREAM: ${API_UPSTREAM:-http://api:3100}
     ports:
       - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:80"
     depends_on:

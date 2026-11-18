@@ -22,7 +22,36 @@ app.use(
 )
 app.use(cookieParser())
 
-// Same-origin check for state-changing requests. The SPA and API share an origin.
+const corsOrigins = new Set(config.corsOrigins)
+
+// CORS for split deployments, where the SPA is served from another origin.
+// Credentials are only allowed for explicitly configured origins.
+app.use('/api', (req, res, next) => {
+  const origin = req.get('origin')
+
+  if (origin && corsOrigins.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Vary', 'Origin')
+
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, PUT, PATCH, POST, DELETE')
+      const requestedHeaders = req.get('access-control-request-headers')
+      if (requestedHeaders) res.setHeader('Access-Control-Allow-Headers', requestedHeaders)
+      res.setHeader('Access-Control-Max-Age', '600')
+      res.status(204).end()
+      return
+    }
+  } else if (origin && req.method === 'OPTIONS' && corsOrigins.size > 0) {
+    res.status(403).json({ error: 'Origin not allowed.' })
+    return
+  }
+
+  next()
+})
+
+// Same-origin check for state-changing requests. Requests from a configured
+// CORS origin are allowed too; everything else must match the API host.
 app.use('/api', (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     next()
@@ -31,6 +60,11 @@ app.use('/api', (req, res, next) => {
 
   const origin = req.get('origin')
   if (!origin) {
+    next()
+    return
+  }
+
+  if (corsOrigins.has(origin)) {
     next()
     return
   }
@@ -92,6 +126,12 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 })
 
 async function start(): Promise<void> {
+  if (config.cookieSameSite === 'none' && !config.cookieSecure) {
+    console.warn(
+      'COOKIE_SAMESITE=none requires COOKIE_SECURE=true; browsers will reject the session cookie otherwise.',
+    )
+  }
+
   await prepareDatabase()
 
   const server = app.listen(config.port, () => {

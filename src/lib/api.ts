@@ -34,6 +34,20 @@ interface RequestOptions {
   timeoutMs?: number
 }
 
+function normalizeBaseUrl(value: string | undefined): string {
+  return (value ?? '').trim().replace(/\/+$/, '')
+}
+
+// Runtime config lets a static build be pointed at another backend without a
+// rebuild. VITE_API_BASE_URL is the build-time fallback for non-Docker hosting.
+const API_BASE_URL = normalizeBaseUrl(
+  window.__JAUNT_CONFIG__?.apiBaseUrl || import.meta.env.VITE_API_BASE_URL,
+)
+
+export function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, timeoutMs } = options
   const headers: Record<string, string> = { Accept: 'application/json' }
@@ -46,11 +60,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   let response: Response
   try {
-    response = await fetch(path, {
+    response = await fetch(apiUrl(path), {
       method,
       headers,
       body: payload,
-      credentials: 'same-origin',
+      credentials: 'include',
       signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
     })
   } catch (error) {
@@ -181,11 +195,11 @@ export const api = {
   async uploadAttachment(id: string, blob: Blob, mimeType: string): Promise<void> {
     let response: Response
     try {
-      response = await fetch(`/api/attachments/${encodeURIComponent(id)}/file`, {
+      response = await fetch(apiUrl(`/api/attachments/${encodeURIComponent(id)}/file`), {
         method: 'PUT',
         headers: { 'Content-Type': mimeType || 'application/octet-stream' },
         body: blob,
-        credentials: 'same-origin',
+        credentials: 'include',
       })
     } catch {
       throw new ApiUnavailableError()
@@ -206,8 +220,8 @@ export const api = {
   async downloadAttachment(id: string): Promise<Blob> {
     let response: Response
     try {
-      response = await fetch(`/api/attachments/${encodeURIComponent(id)}/file`, {
-        credentials: 'same-origin',
+      response = await fetch(apiUrl(`/api/attachments/${encodeURIComponent(id)}/file`), {
+        credentials: 'include',
       })
     } catch {
       throw new ApiUnavailableError()
