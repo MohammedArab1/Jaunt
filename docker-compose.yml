@@ -33,6 +33,8 @@ services:
       COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
       SESSION_DAYS: ${SESSION_DAYS:-90}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+    ports:
+      - "3001:3100"
     depends_on:
       db:
         condition: service_healthy
