@@ -1,4 +1,6 @@
-import { CalendarHeart, Paperclip, ShieldCheck, Sun } from 'lucide-react'
+import { ArrowLeft, CalendarHeart, Paperclip, ShieldCheck, Sun } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/context/AuthContext'
 import { useProfile } from '@/context/ProfileContext'
 import { Wordmark } from '@/components/ui/Logo'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
@@ -27,6 +29,13 @@ const features = [
 
 export function Onboarding() {
   const { createProfile } = useProfile()
+  const { exitOffline } = useAuth()
+  const navigate = useNavigate()
+
+  const backToSignIn = () => {
+    exitOffline()
+    navigate('/', { replace: true })
+  }
 
   return (
     <div className="relative min-h-dvh overflow-hidden">
@@ -43,7 +52,16 @@ export function Onboarding() {
             <ThemeToggle />
           </div>
 
-          <div className="mt-10 lg:mt-16">
+          <button
+            type="button"
+            onClick={backToSignIn}
+            className="mt-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-fg"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to sign in
+          </button>
+
+          <div className="mt-6 lg:mt-16">
             <span className="inline-flex items-center gap-2 rounded-full border border-fg/10 bg-fg/[0.04] px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-mint" />
               Your days, in motion

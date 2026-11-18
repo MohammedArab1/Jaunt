@@ -26,6 +26,7 @@ interface AuthContextValue {
   logout: () => Promise<void>
   updateAccount: (displayName: string, color: string) => Promise<void>
   continueOffline: () => void
+  exitOffline: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -184,9 +185,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMode('guest')
   }, [])
 
+  const exitOffline = useCallback(() => {
+    setGuestMode(false)
+    setMode('unset')
+  }, [])
+
   const value = useMemo<AuthContextValue>(
-    () => ({ ready, user, mode, offline, login, register, logout, updateAccount, continueOffline }),
-    [ready, user, mode, offline, login, register, logout, updateAccount, continueOffline],
+    () => ({
+      ready,
+      user,
+      mode,
+      offline,
+      login,
+      register,
+      logout,
+      updateAccount,
+      continueOffline,
+      exitOffline,
+    }),
+    [
+      ready,
+      user,
+      mode,
+      offline,
+      login,
+      register,
+      logout,
+      updateAccount,
+      continueOffline,
+      exitOffline,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
