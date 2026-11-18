@@ -56,7 +56,13 @@ test('syncs plans, completions, and ticket files across devices', async ({ page,
   await page.getByRole('button', { name: 'Edit' }).click()
   await page.locator('input[type="file"]').setInputFiles(path.resolve('public/pwa-192x192.png'))
   await expect(page.getByText('1/12', { exact: true })).toBeVisible()
+  await page.locator('input[type="file"]').setInputFiles(path.resolve('tests/fixtures/sample.pdf'))
+  await expect(page.getByText('2/12', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Save changes' }).click()
+  await page.getByRole('button', { name: 'View Synced plan' }).click()
+  await page.getByRole('button', { name: 'Open sample.pdf' }).click()
+  await expect(page.locator('canvas[aria-label="sample.pdf page 1"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Close viewer' }).click()
 
   await page.waitForTimeout(4000)
 
@@ -64,7 +70,7 @@ test('syncs plans, completions, and ticket files across devices', async ({ page,
   try {
     await expect(second.page.getByRole('button', { name: 'View Synced plan' })).toBeVisible()
     await second.page.getByRole('button', { name: 'View Synced plan' }).click()
-    await expect(second.page.getByRole('button', { name: /^Open / })).toBeVisible()
+    await expect(second.page.getByRole('button', { name: /^Open / }).first()).toBeVisible()
     await second.page.getByRole('button', { name: 'Close' }).click()
 
     await second.page.getByRole('button', { name: 'Mark Synced plan as done' }).click()

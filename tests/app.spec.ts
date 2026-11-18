@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import path from 'node:path'
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -330,6 +331,36 @@ test('builds a packing list, checks items off, and keeps it after reload', async
   await page.goto(packingUrl)
   await expect(page.getByRole('button', { name: 'Edit Erased item' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Mark Camera as not packed' })).toBeVisible()
+})
+
+test('opens PDF attachments in the in-app viewer', async ({ page, context }) => {
+  await onboard(page, 'PDF')
+  await page.getByLabel('Add a plan', { exact: true }).click()
+  await page.getByLabel('What is it?').fill('PDF plan')
+  await page.locator('input[type="file"]').setInputFiles(path.resolve('tests/fixtures/sample.pdf'))
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await page.getByRole('button', { name: 'View PDF plan' }).click()
+  await page.getByRole('button', { name: 'Open sample.pdf' }).click()
+
+  await expect(page.locator('canvas[aria-label="sample.pdf page 1"]')).toBeVisible()
+  await expect(page.getByText('This PDF could not be displayed. You can download it instead.')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Close viewer' }).click()
+
+  await expect
+    .poll(async () => {
+      await page.evaluate(async () => {
+        await navigator.serviceWorker.ready
+      })
+      return page.evaluate(() => Boolean(navigator.serviceWorker.controller))
+    })
+    .toBe(true)
+
+  await context.setOffline(true)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.getByRole('button', { name: 'View PDF plan' }).click()
+  await page.getByRole('button', { name: 'Open sample.pdf' }).click()
+  await expect(page.locator('canvas[aria-label="sample.pdf page 1"]')).toBeVisible()
+  await context.setOffline(false)
 })
 
 test('shows per-city weather, plan weather, and cached weather offline', async ({ page, context }) => {

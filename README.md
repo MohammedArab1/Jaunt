@@ -28,7 +28,7 @@ Built to live on a phone home screen.
 - **Cross things off** — tap the circle; completed plans fade and progress updates.
 - **Move things around** — drag the grip handle for a custom order, use **Sort by time** to restore chronological order, or edit a plan’s dates to move it.
 - **Calendar view** — a month grid with color-coded activity dots; tap any day to see and edit its agenda.
-- **Tickets & photos** — attach up to 12 files per plan. Photos are compressed on-device; PDFs are kept as-is. Open or download them later.
+- **Tickets & photos** — attach up to 12 files per plan. Photos are compressed on-device; PDFs are kept as-is and open in an offline-capable in-app viewer. Download them whenever you need.
 - **Public read-only links** — share a trip's itinerary with anyone, no account required. Tickets, confirmations, links, and notes stay private; revoke the link at any time.
 - **Global search** — find trips, plans, packing items, places, confirmation numbers, and notes from one page. It reads the offline cache, so it works without a connection and includes shared trips.
 - **Password management** — change your password from Settings. The current device stays signed in and every other session is signed out.
@@ -368,7 +368,7 @@ npx playwright install chromium   # first time only
 npm run test:e2e
 ```
 
-Covers: offline onboarding, local profiles, plan creation, drag/custom ordering, automatic time reordering, Early morning/Morning/Afternoon/Evening day-parts, specific-time and day-part interleaving, multiple active trips on the dashboard, multi-day plan instance timing, completion persistence, offline reload, trips, multi-city destinations, packing lists and essentials, packing suggestions from weather, per-city trip averages and plan-driven daily weather cards with multi-city filtering and location nudges, climate labels, destination-linked plan weather, calendar weather lines, cached weather offline, guest backups/restore, empty time fields, light mode persistence, global search across trips/plans/packing/places/confirmations/notes, and the sign-in gate with “Continue offline.”
+Covers: offline onboarding, local profiles, plan creation, drag/custom ordering, automatic time reordering, Early morning/Morning/Afternoon/Evening day-parts, specific-time and day-part interleaving, multiple active trips on the dashboard, multi-day plan instance timing, completion persistence, offline reload, trips, multi-city destinations, packing lists and essentials, packing suggestions from weather, per-city trip averages and plan-driven daily weather cards with multi-city filtering and location nudges, climate labels, destination-linked plan weather, calendar weather lines, cached weather offline, PDF attachments in the in-app viewer including offline reload, guest backups/restore, empty time fields, light mode persistence, global search across trips/plans/packing/places/confirmations/notes, and the sign-in gate with “Continue offline.”
 
 ### Account / full-stack suite
 
@@ -379,7 +379,7 @@ docker compose up -d --build
 E2E_BASE_URL=http://localhost:8080 npm run test:account
 ```
 
-If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, completion state, offline queued edits, packing-list sync, per-traveler read-only shared lists, service-worker offline reload, importing a guest profile into an account, inviting another account into a trip, creating/revoking a read-only public link, and changing a password with other sessions signed out.
+If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, PDF viewer rendering, completion state, offline queued edits, packing-list sync, per-traveler read-only shared lists, service-worker offline reload, importing a guest profile into an account, inviting another account into a trip, creating/revoking a read-only public link, and changing a password with other sessions signed out.
 
 Type-checking is part of `npm run build`; run `npm run typecheck` for the client and `cd server && npm run typecheck` for the API.
 
@@ -418,6 +418,7 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 - Tailwind CSS 4
 - Dexie / IndexedDB for offline data, attachment cache, and weather cache
 - dnd-kit for reorderable plans
+- PDF.js for offline-capable PDF previews
 - Open-Meteo for city search, forecasts, historical weather, and climate averages
 - Radix Dialog for accessible sheets
 - Theme tokens + `theme-init.js` for instant light/dark/accent loading
