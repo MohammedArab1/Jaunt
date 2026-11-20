@@ -29,7 +29,7 @@ import {
   todayKey,
 } from '@/lib/dates'
 import { deleteActivity, setActivityCompleted } from '@/lib/repo'
-import { copyText, cssVars, hexAlpha, safeHostname } from '@/lib/utils'
+import { copyText, cssVars, hexAlpha, safeExternalUrl, safeHostname } from '@/lib/utils'
 import { useToast } from '@/context/ToastContext'
 import { Sheet } from '@/components/ui/Sheet'
 import { TypeBadge } from '@/components/ui/TypeBadge'
@@ -99,6 +99,7 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
   const mapsUrl = activity.location
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.location)}`
     : null
+  const externalUrl = safeExternalUrl(activity.url)
 
   const toggleDone = async () => {
     const next = !activity.completed
@@ -289,17 +290,17 @@ export function ActivityDetail({ activityId, onClose, onEdit }: ActivityDetailPr
             </div>
           ) : null}
 
-          {activity.url ? (
+          {externalUrl ? (
             <a
-              href={activity.url}
+              href={externalUrl}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="flex items-center gap-3 rounded-2xl border border-fg/[0.08] bg-fg/[0.03] px-4 py-3 transition hover:bg-fg/[0.06]"
             >
               <ExternalLink className="h-4 w-4 shrink-0 text-sky" />
               <div className="min-w-0 flex-1">
                 <p className="eyebrow">Link</p>
-                <p className="truncate text-sm font-bold text-fg">{safeHostname(activity.url)}</p>
+                <p className="truncate text-sm font-bold text-fg">{safeHostname(externalUrl)}</p>
               </div>
               <ExternalLink className="h-3.5 w-3.5 text-muted" />
             </a>

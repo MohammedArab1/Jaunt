@@ -2,6 +2,7 @@ import { db } from '@/db'
 import type { Backup, BackupFile, Profile } from '@/types'
 import { isPackingCategory } from './packing'
 import { todayKey } from './dates'
+import { safeExternalUrl } from './utils'
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -203,7 +204,9 @@ export async function restoreBackup(text: string): Promise<Backup> {
       }
       if (parsed.activities.length) {
         await db.activities.bulkAdd(
-          parsed.activities.filter((activity) => profileIds.has(activity.profileId)),
+          parsed.activities
+            .filter((activity) => profileIds.has(activity.profileId))
+            .map((activity) => ({ ...activity, url: safeExternalUrl(activity.url) })),
         )
       }
       if (packingItems.length) {

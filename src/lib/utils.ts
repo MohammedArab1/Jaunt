@@ -70,6 +70,22 @@ export function normalizeUrl(raw: string): { url?: string; error?: string } {
   }
 }
 
+/**
+ * Return a normalized http(s) URL, or undefined for missing/dangerous schemes.
+ * Use this before rendering URLs that may come from synced or restored data.
+ */
+export function safeExternalUrl(raw: string | null | undefined): string | undefined {
+  const trimmed = typeof raw === 'string' ? raw.trim() : ''
+  if (!trimmed) return undefined
+
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   return 'Something went wrong. Please try again.'

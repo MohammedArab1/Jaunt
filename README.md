@@ -115,7 +115,7 @@ ingress:
   - service: http_status:404
 ```
 
-Run `cloudflared tunnel run <TUNNEL_NAME>`, or manage the tunnel from the Cloudflare dashboard. The app and API are intentionally same-origin; keep both under the same hostname. nginx restores the real client IP from Cloudflare's `CF-Connecting-IP` header for the local tunnel; adjust `set_real_ip_from` in `deploy/nginx.conf` if `cloudflared` runs on a different network.
+Run `cloudflared tunnel run <TUNNEL_NAME>`, or manage the tunnel from the Cloudflare dashboard. The app and API are intentionally same-origin; keep both under the same hostname. nginx restores the real client IP from Cloudflare's `CF-Connecting-IP` header for loopback and private Docker/LAN tunnel networks; keep the web port bound to `127.0.0.1`, and adjust `set_real_ip_from` in `deploy/nginx.conf` if `cloudflared` runs elsewhere.
 
 ### Deploying with Ansible
 
@@ -295,7 +295,8 @@ Security details:
 - Login and registration are rate limited.
 - Public share links use random 192-bit tokens stored on the trip; revoking a link clears the token and returns 404.
 - The API is only reachable through the same-origin nginx proxy in the default setup.
-- Cross-origin state-changing requests are rejected.
+- State-changing API requests require a same-origin fetch header and a matching `Origin`, in addition to `SameSite=Lax` cookies.
+- Activity links are restricted to `http` and `https` URLs before they are stored or rendered.
 - Attachment downloads force non-image/non-PDF content types to download as octet-stream, so uploaded files cannot execute as app-origin HTML.
 
 Change your password any time from **Settings → Password**. Because there is no reset email, **store your password safely**. If you lose it, an administrator with database access can help; there is no self-service recovery.

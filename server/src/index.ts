@@ -14,6 +14,8 @@ import weatherRouter from './routes/weather.js'
 const app = express()
 
 app.disable('x-powered-by')
+// nginx is the only trusted application proxy; it restores the Cloudflare
+// client IP before forwarding /api to this process.
 app.set('trust proxy', 1)
 app.use(
   helmet({
@@ -22,10 +24,17 @@ app.use(
 )
 app.use(cookieParser())
 
-// Same-origin check for state-changing requests. The SPA and API share an origin.
+// State-changing requests must be same-origin fetch calls. The custom header
+// forces a CORS preflight for cross-origin callers, and the Origin check blocks
+// same-site/host mismatches. SameSite cookies remain defense-in-depth.
 app.use('/api', (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     next()
+    return
+  }
+
+  if (req.get('x-requested-with') !== 'fetch') {
+    res.status(403).json({ error: 'Missing request header.' })
     return
   }
 

@@ -31,6 +31,22 @@ const timeString = z
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time.')
   .nullish()
 
+// Only http(s) URLs may be stored. This blocks javascript:/data: URL injection
+// when a synced activity is rendered as a link in another user's browser.
+const httpUrl = z
+  .string()
+  .trim()
+  .max(1000)
+  .refine((value) => {
+    try {
+      const url = new URL(value)
+      return url.protocol === 'http:' || url.protocol === 'https:'
+    } catch {
+      return false
+    }
+  }, 'Use an http or https link.')
+  .nullish()
+
 const destinationSchema = z.object({
   id: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
@@ -69,7 +85,7 @@ const activitySchema = z.object({
   type: z.enum(['flight', 'lodging', 'food', 'experience', 'transport', 'event', 'shopping', 'other']),
   notes: z.string().max(10_000).nullish(),
   confirmation: z.string().max(200).nullish(),
-  url: z.string().max(1000).nullish(),
+  url: httpUrl,
   completed: z.boolean(),
   sortOrder: z.number().int(),
   createdAt: z.number().int().nonnegative(),

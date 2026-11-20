@@ -39,6 +39,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const headers: Record<string, string> = { Accept: 'application/json' }
   let payload: BodyInit | undefined
 
+  // Cross-origin JavaScript cannot set this header without a CORS preflight.
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
+    headers['X-Requested-With'] = 'fetch'
+  }
+
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
     payload = JSON.stringify(body)
@@ -183,7 +188,10 @@ export const api = {
     try {
       response = await fetch(`/api/attachments/${encodeURIComponent(id)}/file`, {
         method: 'PUT',
-        headers: { 'Content-Type': mimeType || 'application/octet-stream' },
+        headers: {
+          'Content-Type': mimeType || 'application/octet-stream',
+          'X-Requested-With': 'fetch',
+        },
         body: blob,
         credentials: 'same-origin',
       })

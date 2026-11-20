@@ -1,5 +1,6 @@
 import { db } from '@/db'
 import { ApiError, api } from './api'
+import { safeExternalUrl } from './utils'
 import type {
   Activity,
   Attachment,
@@ -69,7 +70,7 @@ function toSyncActivity(activity: Activity): SyncActivity {
     type: activity.type,
     notes: activity.notes,
     confirmation: activity.confirmation,
-    url: activity.url,
+    url: safeExternalUrl(activity.url),
     completed: activity.completed,
     sortOrder: activity.sortOrder,
     createdAt: activity.createdAt,
@@ -141,7 +142,7 @@ function toLocalActivity(activity: SyncActivity, profileId: string): Activity {
     type: activity.type,
     notes: optional(activity.notes),
     confirmation: optional(activity.confirmation),
-    url: optional(activity.url),
+    url: safeExternalUrl(activity.url),
     completed: activity.completed,
     sortOrder: activity.sortOrder,
     createdAt: activity.createdAt,
