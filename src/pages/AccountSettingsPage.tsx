@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Cloud,
   CloudOff,
-  Database,
   Import as ImportIcon,
   KeyRound,
   LogOut,
@@ -270,24 +269,6 @@ export function AccountSettingsPage() {
           </div>
         </section>
       ) : null}
-
-      <section className="mt-8">
-        <div className="mb-3">
-          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">Where it lives</h2>
-        </div>
-        <div className="surface flex items-start gap-3.5 p-4">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] text-mint">
-            <Database className="h-4 w-4" />
-          </span>
-          <div>
-            <p className="text-sm font-extrabold text-fg">Your self-hosted PostgreSQL database</p>
-            <p className="mt-1 text-[11px] font-medium leading-relaxed text-muted">
-              Plans, trips, and ticket files are stored per account on the server. A cached copy stays
-              here so Jaunt keeps working offline.
-            </p>
-          </div>
-        </div>
-      </section>
 
       <InstallCard />
 

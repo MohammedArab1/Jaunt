@@ -7,7 +7,6 @@ import {
   Plus,
   Search,
   Settings2,
-  ShieldCheck,
   Sun,
 } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -102,15 +101,6 @@ export function SideNav() {
             </span>
           </Link>
         ) : null}
-
-        <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-fg/[0.06] bg-fg/[0.025] px-3.5 py-3">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
-          <p className="text-[11px] font-semibold leading-relaxed text-muted">
-            {mode === 'account'
-              ? 'Private by default. Stored on your own server.'
-              : 'Private by default. Your plans stay on this device.'}
-          </p>
-        </div>
 
         {profile ? (
           <button
