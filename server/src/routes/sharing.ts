@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { Router, type NextFunction, type Request, type Response } from 'express'
+import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import { pool } from '../db.js'
 import { currentUser, requireAuth } from '../auth.js'
@@ -13,6 +14,17 @@ import {
 } from '../tripAccess.js'
 
 const router = Router()
+
+// Invites are the only place a user can test whether an email has an account.
+// Throttle them per authenticated user to slow enumeration and spam.
+const inviteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? req.ip ?? 'unknown',
+  message: { error: 'Too many invitations. Try again later.' },
+})
 
 function asyncHandler(
   handler: (req: Request, res: Response) => Promise<void>,
@@ -196,6 +208,7 @@ const inviteSchema = z.object({
 router.post(
   '/trips/:tripId/invite',
   requireAuth,
+  inviteLimiter,
   asyncHandler(async (req, res) => {
     const userId = currentUser(req).id
     const tripId = String(req.params.tripId ?? '')

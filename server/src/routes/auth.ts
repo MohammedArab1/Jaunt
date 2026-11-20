@@ -118,7 +118,7 @@ router.post(
       res.status(201).json({ user })
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-        res.status(409).json({ error: 'An account with that email already exists.' })
+        res.status(409).json({ error: 'Could not create an account with those details. Try signing in instead.' })
         return
       }
       throw error
