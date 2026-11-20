@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { PoolClient } from 'pg'
 import { pool } from '../db.js'
 import { currentUser, requireAuth } from '../auth.js'
+import { isAllowedAttachmentMime } from '../mime.js'
 import {
   acquireSyncLock,
   addTombstones,
@@ -110,7 +111,11 @@ const attachmentSchema = z.object({
   id: z.string().min(1).max(100),
   activityId: z.string().min(1).max(100),
   name: z.string().min(1).max(300),
-  mimeType: z.string().min(1).max(200),
+  mimeType: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine(isAllowedAttachmentMime, 'Unsupported attachment type.'),
   size: z.number().int().nonnegative().max(30 * 1024 * 1024),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),

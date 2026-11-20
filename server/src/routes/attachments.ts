@@ -3,6 +3,7 @@ import express from 'express'
 import { pool } from '../db.js'
 import { currentUser, requireAuth } from '../auth.js'
 import { acquireSyncLock, canAccessActivity, getActivityMeta } from '../tripAccess.js'
+import { baseMimeType, isInlineSafeMime } from '../mime.js'
 
 const router = Router()
 
@@ -116,10 +117,9 @@ router.get(
     }
 
     const safeName = row.name.replace(/["\r\n]/g, '_').slice(0, 200)
-    const displaySafe =
-      row.mime_type === 'application/pdf' ||
-      (row.mime_type.startsWith('image/') && row.mime_type !== 'image/svg+xml')
-    const contentType = displaySafe ? row.mime_type : 'application/octet-stream'
+    const mimeType = baseMimeType(row.mime_type)
+    const displaySafe = isInlineSafeMime(mimeType)
+    const contentType = displaySafe ? mimeType : 'application/octet-stream'
     const disposition = displaySafe ? 'inline' : 'attachment'
 
     res.setHeader('Content-Type', contentType)
