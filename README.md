@@ -41,18 +41,21 @@ Built to live on a phone home screen.
 ## Architecture
 
 ```
-┌─────────────────────────┐       same-origin /api       ┌────────────────────┐
-│ Phone / desktop browser │  ───────────────────────►   │  Node API           │
-│ React + IndexedDB cache │                              │  Express + sessions │
-└─────────────────────────┘                              └─────────┬──────────┘
-          ▲                                                        │
-          │ service worker precache                                ▼
-┌─────────────────────────┐                              ┌────────────────────┐
-│ nginx (web container)    │  serves app, proxies /api   │  PostgreSQL        │
-└─────────────────────────┘                              └────────────────────┘
+Browser (HTTPS)
+   │
+   ▼
+Cloudflare edge (DNS + TLS)
+   │ Cloudflare Tunnel
+   ▼
+cloudflared on the VPS
+   │ http://127.0.0.1:8080
+   ▼
+nginx web container
+   ├── serves the React app + service worker
+   └── proxies /api ──► Node API (Express + sessions) ──► PostgreSQL
 ```
 
-The web container serves the built app and proxies `/api` to the API container. The API owns accounts, sessions, sync, and attachment files. PostgreSQL is the durable account store. The browser keeps an IndexedDB mirror so a signed-in account still opens and works offline.
+Cloudflare terminates TLS and routes `planjaunt.com` through a Cloudflare Tunnel to `cloudflared` on the host. `cloudflared` forwards to nginx on `127.0.0.1:8080`; nginx serves the built app and proxies `/api` to the API container. The API owns accounts, sessions, sync, and attachment files. PostgreSQL is the durable account store. The browser keeps an IndexedDB mirror so a signed-in account still opens and works offline.
 
 ### Sync model
 
@@ -78,7 +81,7 @@ Edit `.env`:
 | --- | --- |
 | `POSTGRES_PASSWORD` | **Required.** Long random password for PostgreSQL. |
 | `WEB_PORT` | Public port for the web app (default `8080`). |
-| `WEB_BIND` | Interface for the web port (default `0.0.0.0`; use `127.0.0.1` behind a proxy). |
+| `WEB_BIND` | Interface for the web port (default `0.0.0.0`; use `127.0.0.1` behind a Cloudflare Tunnel or another local proxy). |
 | `DB_PORT` | Local-only host port for PostgreSQL development access (default `55432`). |
 | `SESSION_DAYS` | How long login sessions last (default `90`). |
 | `COOKIE_SECURE` | Keep `true` on HTTPS. Set `false` only for plain-HTTP localhost testing. |
@@ -95,19 +98,24 @@ The API applies its schema automatically on startup. The database lives in the `
 
 ### Serving on your phone
 
-Service workers, installation, and the full offline app require **HTTPS** (localhost is the exception). Put the web container behind a reverse proxy with TLS. A Caddy example is included:
+Service workers, installation, and the full offline app require **HTTPS** (localhost is the exception). The production setup uses a Cloudflare Tunnel; TLS is terminated at Cloudflare, and the only proxy inside this repository is the nginx web container that serves the app and forwards `/api`.
 
-```bash
-# Point a domain at your server first.
-docker compose up -d --build
-cp Caddyfile.example Caddyfile
-# edit the domain in Caddyfile
-caddy run --config Caddyfile
+1. Keep `WEB_BIND=127.0.0.1` (or `jaunt_web_bind: 127.0.0.1` in Ansible) so the web container is not exposed directly.
+2. Route `planjaunt.com` through a Cloudflare Tunnel to `http://127.0.0.1:8080`.
+3. Keep `COOKIE_SECURE=true` in production.
+
+A minimal `cloudflared` config looks like this:
+
+```yaml
+tunnel: <TUNNEL_ID>
+credentials-file: /home/<user>/.cloudflared/<TUNNEL_ID>.json
+ingress:
+  - hostname: planjaunt.com
+    service: http://127.0.0.1:8080
+  - service: http_status:404
 ```
 
-Caddy gets a certificate automatically and proxies to the web container. A Cloudflare Tunnel or Tailscale Serve also works for HTTPS.
-
-Keep `COOKIE_SECURE=true` in production so session cookies are only sent over HTTPS. The app and API are intentionally same-origin; keep both under the same hostname.
+Run `cloudflared tunnel run <TUNNEL_NAME>`, or manage the tunnel from the Cloudflare dashboard. The app and API are intentionally same-origin; keep both under the same hostname. nginx restores the real client IP from Cloudflare's `CF-Connecting-IP` header for the local tunnel; adjust `set_real_ip_from` in `deploy/nginx.conf` if `cloudflared` runs on a different network.
 
 ### Deploying with Ansible
 
@@ -177,12 +185,13 @@ Each run:
 8. If the new containers fail to become healthy, retags the previous images
    and brings them back automatically.
 
-The playbook does not manage a reverse proxy, DNS, or TLS. For
-`planjaunt.com`, point DNS at the host and configure your proxy or tunnel to
-forward to `127.0.0.1:8080` (the default `jaunt_web_bind`). If you instead
-expose the port directly, set `jaunt_web_bind: 0.0.0.0` in
-`ansible/group_vars/all.yml`. `jaunt_domain` only decides whether session
-cookies are marked secure, so it requires HTTPS to be working.
+The playbook does not manage Cloudflare Tunnel, DNS, or TLS. For
+`planjaunt.com`, configure the Cloudflare Tunnel to forward to
+`http://127.0.0.1:8080` (the default `jaunt_web_bind`) and create the
+corresponding DNS route in Cloudflare. If you instead expose the port
+directly, set `jaunt_web_bind: 0.0.0.0` in `ansible/group_vars/all.yml`.
+`jaunt_domain` only decides whether session cookies are marked secure, so it
+requires HTTPS to be working.
 
 **Data safety:** the `jaunt_db` volume is never removed by this playbook.
 `docker compose down -v` is never used. To restore a dump:
@@ -414,7 +423,6 @@ server/Dockerfile       API image
 docker-compose.yml      web + api + db
 tests/                  guest/offline Playwright tests
 tests/account/          full-stack account Playwright tests
-Caddyfile.example       automatic HTTPS reverse proxy example
 ```
 
 ### Stack
@@ -429,6 +437,7 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 - Theme tokens + `theme-init.js` for instant light/dark/accent loading
 - Node 24 + Express 5 + `pg`
 - PostgreSQL 17
+- Cloudflare Tunnel for public HTTPS ingress
 - bcryptjs, HTTP-only session cookies
 - vite-plugin-pwa / Workbox
 - Playwright

@@ -16,8 +16,9 @@ jaunt_repo_branch: main
 jaunt_compose_project_name: jaunt
 
 # Web port. The container still listens on port 80 internally. The host
-# binding is controlled by jaunt_web_bind: keep 127.0.0.1 when a reverse proxy
-# or tunnel on the host forwards to it, or use 0.0.0.0 to expose it directly.
+# binding is controlled by jaunt_web_bind: keep 127.0.0.1 when a Cloudflare
+# Tunnel or another local proxy forwards to it, or use 0.0.0.0 to expose it
+# directly.
 jaunt_web_port: 8080
 jaunt_web_bind: 127.0.0.1
 
@@ -29,8 +30,8 @@ jaunt_db_port: 55432
 jaunt_session_days: 180
 
 # Public hostname. This only controls whether session cookies are marked
-# secure; the playbook does not manage a reverse proxy or TLS. Leave empty for
-# an HTTP-only deployment.
+# secure; the playbook does not manage Cloudflare Tunnel, DNS, or TLS. Leave
+# empty for an HTTP-only deployment.
 jaunt_domain: "planjaunt.com"
 jaunt_cookie_secure: "{{ (jaunt_domain | length > 0) | lower }}"
 
