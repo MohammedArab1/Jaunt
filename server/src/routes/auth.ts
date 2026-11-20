@@ -30,6 +30,17 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Give it a few minutes and try again.' },
 })
 
+// Registration is counted whether it succeeds or fails: otherwise an attacker
+// can create unlimited accounts (bcrypt CPU, database rows, and storage).
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 35,
+  skipSuccessfulRequests: false,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many accounts created from this address. Try again later.' },
+})
+
 const credentialsSchema = z.object({
   email: z
     .string()
@@ -74,7 +85,7 @@ interface UserRow {
 
 router.post(
   '/register',
-  authLimiter,
+  registerLimiter,
   asyncHandler(async (req, res) => {
     const parsed = credentialsSchema.safeParse(req.body)
     if (!parsed.success) {
