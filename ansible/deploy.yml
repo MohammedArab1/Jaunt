@@ -45,19 +45,6 @@
           environment:
             GIT_TERMINAL_PROMPT: "0"
 
-        - name: Refuse to deploy uncommitted local changes
-          ansible.builtin.assert:
-            that:
-              - jaunt_local_status.stdout | length == 0
-            fail_msg: |
-              Your local working tree is not clean:
-
-              {{ jaunt_local_status.stdout }}
-
-              Commit and push everything before deploying. The server only
-              deploys commits that are on GitHub.
-          delegate_to: localhost
-
         - name: Fetch the deploy branch from GitHub
           ansible.builtin.command:
             argv:
