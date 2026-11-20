@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 
 export function cssVars(vars: Record<string, string>): CSSProperties {
   return vars as CSSProperties
@@ -88,24 +88,16 @@ export function safeHostname(url: string): string {
   }
 }
 
+export function isImeComposing<T extends Element>(event: ReactKeyboardEvent<T>): boolean {
+  return event.nativeEvent.isComposing || event.keyCode === 229
+}
+
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text)
     return true
   } catch {
-    try {
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      document.body.appendChild(textarea)
-      textarea.select()
-      const copied = document.execCommand('copy')
-      textarea.remove()
-      return copied
-    } catch {
-      return false
-    }
+    return false
   }
 }
 

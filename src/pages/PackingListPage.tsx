@@ -125,7 +125,7 @@ export function PackingListPage() {
 
   const sorted = useMemo(
     () =>
-      [...items].sort(
+      items.toSorted(
         (a, b) =>
           packingCategoryRank(a.category) - packingCategoryRank(b.category) ||
           a.sortOrder - b.sortOrder ||

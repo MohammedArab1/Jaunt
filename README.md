@@ -433,6 +433,10 @@ Caddyfile.example       automatic HTTPS reverse proxy example
 - vite-plugin-pwa / Workbox
 - Playwright
 
+### Browser support
+
+Jaunt targets **Baseline 2023** (Chrome/Edge 111+, Firefox 115+, Safari 16.2+). Features that are Baseline 2023 or earlier may be used without fallbacks; newer platform features need progressive enhancement or a fallback.
+
 ---
 
 ## Environment variables

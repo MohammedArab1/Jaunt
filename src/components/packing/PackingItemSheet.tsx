@@ -3,7 +3,7 @@ import { Loader2, Minus, Plus, Trash2 } from 'lucide-react'
 import type { PackingCategory, PackingItem } from '@/types'
 import { PACKING_CATEGORIES } from '@/lib/packing'
 import { deletePackingItem, updatePackingItem } from '@/lib/repo'
-import { cn, getErrorMessage } from '@/lib/utils'
+import { cn, getErrorMessage, isImeComposing } from '@/lib/utils'
 import { useToast } from '@/context/ToastContext'
 import { Sheet } from '@/components/ui/Sheet'
 import { Field } from '@/components/ui/Field'
@@ -93,7 +93,9 @@ export function PackingItemSheet({ item, onClose }: PackingItemSheetProps) {
             value={name}
             onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') void save()
+              if (event.key !== 'Enter' || isImeComposing(event)) return
+              event.preventDefault()
+              void save()
             }}
             placeholder="Passport, charger, sunscreen…"
             className="field font-bold"

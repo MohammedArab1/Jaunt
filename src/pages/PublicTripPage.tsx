@@ -88,8 +88,8 @@ export function PublicTripPage({ token }: PublicTripPageProps) {
     const { trip, activities } = payload
     const starts = [trip.startDate, ...activities.map((activity) => activity.date)]
     const ends = [trip.endDate, ...activities.map((activity) => activityEndDate(activity))]
-    const start = [...starts].sort()[0] ?? trip.startDate
-    const end = [...ends].sort().at(-1) ?? trip.endDate
+    const start = starts.toSorted()[0] ?? trip.startDate
+    const end = ends.toSorted().at(-1) ?? trip.endDate
 
     return eachDayKey(start, end).map((date) => ({
       date,

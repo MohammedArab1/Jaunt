@@ -3,7 +3,7 @@ import { Loader2, MapPin, Plus, X } from 'lucide-react'
 import type { CityOption, TripDestination } from '@/types'
 import { api, isNetworkError } from '@/lib/api'
 import { newId } from '@/lib/id'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposing } from '@/lib/utils'
 
 interface DestinationComboboxProps {
   id: string
@@ -162,6 +162,7 @@ export function DestinationCombobox({ id, value, onChange }: DestinationCombobox
     }
 
     if (event.key === 'Enter') {
+      if (isImeComposing(event)) return
       event.preventDefault()
       if (open && activeIndex >= 0 && options[activeIndex]) {
         addSuggestion(options[activeIndex])

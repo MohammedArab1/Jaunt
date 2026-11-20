@@ -46,7 +46,7 @@ export function PlanList({
     .join('|')
   const [items, setItems] = useState<Activity[]>(sorted)
   const ids = activities.map((activity) => activity.id)
-  const idsKey = [...ids].sort().join('|')
+  const idsKey = ids.toSorted().join('|')
 
   useEffect(() => {
     setItems(sortActivities(activities))

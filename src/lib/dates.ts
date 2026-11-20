@@ -210,11 +210,11 @@ export function compareActivitiesByTime(a: Activity, b: Activity): number {
 }
 
 export function sortActivities(activities: Activity[]): Activity[] {
-  return [...activities].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt)
+  return activities.toSorted((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt)
 }
 
 export function sortActivitiesByTime(activities: Activity[]): Activity[] {
-  return [...activities].sort(compareActivitiesByTime)
+  return activities.toSorted(compareActivitiesByTime)
 }
 
 export function dateRangeLabel(start: string, end: string): string {

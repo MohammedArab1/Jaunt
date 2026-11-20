@@ -3,7 +3,7 @@ import { Crown, Loader2, LogOut, Mail, RefreshCw, UserPlus, Users } from 'lucide
 import type { Trip, TripMembersPayload } from '@/types'
 import { ApiError, isNetworkError } from '@/lib/api'
 import { api } from '@/lib/api'
-import { getErrorMessage, pluralize } from '@/lib/utils'
+import { getErrorMessage, isImeComposing, pluralize } from '@/lib/utils'
 import { useToast } from '@/context/ToastContext'
 import { useSync } from '@/context/SyncContext'
 import { Sheet } from '@/components/ui/Sheet'
@@ -167,7 +167,9 @@ export function TripMembersSheet({ trip, onClose, onLeft }: TripMembersSheetProp
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter') void invite()
+                    if (event.key !== 'Enter' || isImeComposing(event)) return
+                    event.preventDefault()
+                    void invite()
                   }}
                   placeholder="their@email.com"
                   className="field pl-10 text-sm"
