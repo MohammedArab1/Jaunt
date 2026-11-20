@@ -186,7 +186,7 @@ export function AccountSettingsPage() {
         <div className="mb-3">
           <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">Sync</h2>
           <p className="mt-1 text-xs font-medium text-muted">
-            Your account lives on your own server and is cached here for offline use.
+            Your plans sync automatically and stay available offline.
           </p>
         </div>
 

@@ -2,11 +2,11 @@ import { useState, type FormEvent } from 'react'
 import {
   ArrowLeft,
   Cloud,
-  Database,
   Eye,
   EyeOff,
   Loader2,
   LockKeyhole,
+  Sparkles,
   WifiOff,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -30,10 +30,10 @@ const features = [
     body: 'Your account is cached on this device. Changes queue up and sync when you reconnect.',
   },
   {
-    icon: Database,
-    color: '#A98BFF',
-    title: 'Your own little cloud',
-    body: 'This is a self-hosted account, backed by your own PostgreSQL server.',
+    icon: Sparkles,
+    color: '#FFD166',
+    title: 'Free to use',
+    body: 'No ads, no subscriptions. Just your trips, plans, and tickets in one place.',
   },
 ]
 

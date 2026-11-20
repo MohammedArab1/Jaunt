@@ -31,7 +31,7 @@ export default defineConfig({
       manifest: {
         name: 'Jaunt — Day & Trip Planner',
         short_name: 'Jaunt',
-        description: 'Self-hosted, offline-first day and trip planning with accounts and tickets.',
+        description: 'Free day and trip planning with offline support and tickets in one place.',
         theme_color: '#0B0A10',
         background_color: '#0B0A10',
         display: 'standalone',
