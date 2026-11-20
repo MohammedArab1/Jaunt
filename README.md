@@ -112,22 +112,32 @@ Keep `COOKIE_SECURE=true` in production so session cookies are only sent over HT
 ### Deploying with Ansible
 
 The `ansible/` directory deploys the stack to the host in
-`ansible/inventory.ini` (`root@5.78.120.71` by default).
+`ansible/inventory.ini` (`mohammed-arab@10.0.0.251` by default).
 
 On the machine you deploy from:
 
 ```bash
 ansible-galaxy collection install -r ansible/requirements.yml
-ssh root@5.78.120.71 true
+ssh mohammed-arab@10.0.0.251 true
 ```
 
+The deploy user must be able to run Docker without sudo (normally membership
+in the `docker` group; log out and back in after adding it) and must own
+`jaunt_app_dir`. The playbook runs without privilege escalation and does not
+manage swap.
+
 Create the optional secrets file. On this host, leaving the password empty
-adopts the password already present in `/root/Jaunt/.env`:
+adopts the password already present in the server checkout's `.env`:
 
 ```bash
 cp ansible/vars/production.example.yml ansible/vars/production.yml
 # edit it; the file is gitignored and can be ansible-vault encrypted
 ```
+
+If you are moving an existing deployment, copy its `.env` into the new
+`jaunt_app_dir` (or set `jaunt_postgres_password`) so the app keeps using the
+same database password. The Compose project name is unchanged, so an existing
+`jaunt` database volume on the same host is reused.
 
 The GitHub repository is the source of truth. The deploy refuses to run if
 your local working tree is dirty or if `HEAD` differs from
@@ -142,64 +152,59 @@ git push origin main
 npm run deploy
 ```
 
-The server keeps its own checkout at `/root/Jaunt`, fetches `origin/main`,
-and hard-resets to it. Uncommitted local files are never copied to the server.
+The server keeps its own checkout at `jaunt_app_dir`
+(`/home/mohammed-arab/Desktop/Programming/Jaunt` by default), fetches
+`origin/main`, and hard-resets to it. Uncommitted local files are never copied
+to the server.
 The repository is public, so the server fetches over HTTPS without
 credentials. If you make it private, configure a read-only deploy key on the
 server or point `jaunt_repo_url` at an authenticated URL.
 
 Each run:
 
-1. Ensures a 2 GB swap file exists (this is a small shared host).
-2. Pulls the pushed `main` commit from
-   `https://github.com/MohammedArab1/Jaunt.git` into `/root/Jaunt` with
+1. Pulls the pushed `main` commit from
+   `https://github.com/MohammedArab1/Jaunt.git` into `jaunt_app_dir` with
    `git fetch` and a hard reset. Untracked files are removed, except the
    gitignored `.env`, `backups/`, dependencies, and build output.
-3. Renders `.env` from `ansible/group_vars/all.yml` and the preserved
+2. Renders `.env` from `ansible/group_vars/all.yml` and the preserved
    database password.
-4. Dumps PostgreSQL to `backups/` (14-day retention) and tests the archive.
-5. Builds `api` then `web` with `--pull` and a cache-busting build argument.
-6. Runs `docker compose down --remove-orphans`, then
+3. Dumps PostgreSQL to `backups/` (14-day retention) and tests the archive.
+4. Builds `api` then `web` with `--pull` and a cache-busting build argument.
+5. Runs `docker compose down --remove-orphans`, then
    `docker compose up -d --remove-orphans --force-recreate --wait`.
-7. Checks `/api/health`, adds/reloads the marked Caddy site block, and
-   verifies the public HTTPS URL.
-8. Removes dangling images and build cache older than 24 hours.
-9. If the new containers fail to become healthy, retags the previous images
+6. Checks `/api/health` on the host's web port.
+7. Removes dangling images and build cache older than 24 hours.
+8. If the new containers fail to become healthy, retags the previous images
    and brings them back automatically.
 
-The public URL is `https://jaunt.5.78.120.71.nip.io`. Caddy already owns
-ports 80/443 on the host and handles the certificate. The web container is
-bound to `127.0.0.1:8080`, so Caddy is the only public entry point. Replace
-`jaunt_domain` in `ansible/group_vars/all.yml` with a real domain when you
-have one. Set `jaunt_manage_caddy: false` to skip the proxy changes and
-publish only on `WEB_PORT` (which the provider firewall currently blocks).
-
-> **Host note:** Caddy on this server is currently a manually started
-> process, not the failed `caddy.service`. The deploy reloads it but does not
-> change how it starts. Fix that systemd unit separately so HTTPS survives a
-> reboot.
+The playbook does not manage a reverse proxy, DNS, or TLS. For
+`planjaunt.com`, point DNS at the host and configure your proxy or tunnel to
+forward to `127.0.0.1:8080` (the default `jaunt_web_bind`). If you instead
+expose the port directly, set `jaunt_web_bind: 0.0.0.0` in
+`ansible/group_vars/all.yml`. `jaunt_domain` only decides whether session
+cookies are marked secure, so it requires HTTPS to be working.
 
 **Data safety:** the `jaunt_db` volume is never removed by this playbook.
 `docker compose down -v` is never used. To restore a dump:
 
 ```bash
-ssh root@5.78.120.71
-cd /root/Jaunt
+ssh mohammed-arab@10.0.0.251
+cd /home/mohammed-arab/Desktop/Programming/Jaunt
 gunzip -c backups/jaunt-YYYYMMDD-HHMMSS.sql.gz | docker compose exec -T db psql -U jaunt -d jaunt
 ```
 
 To roll back manually:
 
 ```bash
-ssh root@5.78.120.71
-cd /root/Jaunt
+ssh mohammed-arab@10.0.0.251
+cd /home/mohammed-arab/Desktop/Programming/Jaunt
 docker tag jaunt-web:previous jaunt-web:latest
 docker tag jaunt-api:previous jaunt-api:latest
 docker compose up -d --force-recreate --remove-orphans
 ```
 
-`COOKIE_SECURE` becomes `true` automatically when `jaunt_domain` is set. If
-you disable Caddy and use plain HTTP, set `jaunt_cookie_secure: "false"` in
+`COOKIE_SECURE` becomes `true` automatically when `jaunt_domain` is set. For a
+plain-HTTP deployment, set `jaunt_cookie_secure: "false"` in
 `ansible/group_vars/all.yml`; installation and service workers still require
 HTTPS.
 

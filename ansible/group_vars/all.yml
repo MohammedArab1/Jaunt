@@ -1,6 +1,10 @@
 ---
 # Where the app is checked out on the server.
-jaunt_app_dir: /root/Jaunt
+jaunt_app_dir: /home/mohammed-arab/Desktop/Programming/Jaunt
+
+# The deploy user owns the checkout, .env, and backups. The playbook runs as
+# this user over SSH (no sudo/become), so it must be able to run Docker.
+jaunt_deploy_user: "{{ ansible_user | default('mohammed-arab') }}"
 
 # GitHub is the source of truth. The server fetches this branch and hard-resets
 # to it; local uncommitted work is never sent to the server.
@@ -11,8 +15,9 @@ jaunt_repo_branch: main
 # deployment directory and the existing container names on the host.
 jaunt_compose_project_name: jaunt
 
-# Web port. The container still listens on port 80 internally. Caddy is the
-# public entry point, so the host port binds to loopback only.
+# Web port. The container still listens on port 80 internally. The host
+# binding is controlled by jaunt_web_bind: keep 127.0.0.1 when a reverse proxy
+# or tunnel on the host forwards to it, or use 0.0.0.0 to expose it directly.
 jaunt_web_port: 8080
 jaunt_web_bind: 127.0.0.1
 
@@ -23,19 +28,11 @@ jaunt_db_port: 55432
 # Login session lifetime.
 jaunt_session_days: 180
 
-# Public HTTPS hostname. nip.io resolves this subdomain to the server without
-# needing to own a domain. Replace it with a real domain whenever you have one.
-# Leave empty for an HTTP-only deployment on the raw IP.
-jaunt_domain: "jaunt.5.78.120.71.nip.io"
+# Public hostname. This only controls whether session cookies are marked
+# secure; the playbook does not manage a reverse proxy or TLS. Leave empty for
+# an HTTP-only deployment.
+jaunt_domain: "planjaunt.com"
 jaunt_cookie_secure: "{{ (jaunt_domain | length > 0) | lower }}"
-
-# Caddy already owns ports 80/443 on this host and fronts the other apps.
-# The playbook only adds a marked site block and reloads Caddy; it never
-# rewrites the imported sites.
-jaunt_manage_caddy: true
-jaunt_caddy_dir: /root/caddy
-jaunt_caddy_config: "{{ jaunt_caddy_dir }}/Caddyfile"
-jaunt_caddy_https_health_url: "https://{{ jaunt_domain }}/api/health"
 
 # Pre-deploy database dumps.
 jaunt_backup_dir: "{{ jaunt_app_dir }}/backups"
@@ -52,9 +49,10 @@ jaunt_prune_builder: true
 jaunt_builder_cache_until: 24h
 jaunt_keep_previous_images: true
 
-# This is a 2 GB host. A little swap keeps image builds from OOM-killing the
-# other services that share it.
-jaunt_manage_swap: true
+# Swap is managed by the host OS. The playbook runs as a normal user now, so
+# it cannot create/enable /swapfile or edit /etc/fstab. Set this to true only
+# if you also run the playbook with privilege escalation.
+jaunt_manage_swap: false
 jaunt_swap_file: /swapfile
 jaunt_swap_size_mb: 2048
 

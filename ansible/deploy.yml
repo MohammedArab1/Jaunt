@@ -267,17 +267,17 @@
       ansible.builtin.file:
         path: "{{ jaunt_app_dir }}"
         state: directory
-        owner: root
-        group: root
+        owner: "{{ jaunt_deploy_user }}"
+        group: "{{ jaunt_deploy_user }}"
         mode: "0755"
       tags: git
 
-    - name: Ensure the deployment tree is owned by root
+    - name: Ensure the deployment tree is owned by the deploy user
       ansible.builtin.file:
         path: "{{ jaunt_app_dir }}"
         state: directory
-        owner: root
-        group: root
+        owner: "{{ jaunt_deploy_user }}"
+        group: "{{ jaunt_deploy_user }}"
         recurse: true
       tags: git
 
@@ -366,8 +366,6 @@
           - -e
           - server/dist
           - -e
-          - Caddyfile
-          - -e
           - ansible/vars/production.yml
       register: jaunt_git_clean
       changed_when: jaunt_git_clean.stdout | length > 0
@@ -417,8 +415,8 @@
       ansible.builtin.template:
         src: "{{ playbook_dir }}/templates/env.j2"
         dest: "{{ jaunt_app_dir }}/.env"
-        owner: root
-        group: root
+        owner: "{{ jaunt_deploy_user }}"
+        group: "{{ jaunt_deploy_user }}"
         mode: "0600"
       no_log: true
       tags: config
@@ -432,7 +430,7 @@
       changed_when: false
       tags: preflight
 
-    - name: Verify the Docker daemon is reachable
+    - name: Verify the Docker daemon is reachable by the deploy user
       ansible.builtin.command:
         cmd: docker ps -q
       changed_when: false
@@ -513,8 +511,8 @@
           ansible.builtin.file:
             path: "{{ jaunt_backup_dir }}"
             state: directory
-            owner: root
-            group: root
+            owner: "{{ jaunt_deploy_user }}"
+            group: "{{ jaunt_deploy_user }}"
             mode: "0700"
 
         - name: Timestamp the backup
@@ -558,8 +556,8 @@
             src: "{{ jaunt_app_dir }}/.env"
             dest: "{{ jaunt_backup_dir }}/env-{{ jaunt_backup_stamp }}.bak"
             remote_src: true
-            owner: root
-            group: root
+            owner: "{{ jaunt_deploy_user }}"
+            group: "{{ jaunt_deploy_user }}"
             mode: "0600"
 
         - name: Remove expired backups
@@ -704,121 +702,6 @@
             msg: "Jaunt deployment failed. Container status and recent logs are above."
 
     # ---------------------------------------------------------------------
-    # HTTPS entry point
-    # ---------------------------------------------------------------------
-    - name: Publish Jaunt through Caddy over HTTPS
-      when:
-        - jaunt_manage_caddy
-        - jaunt_domain | length > 0
-      tags: caddy
-      block:
-        - name: Check the Caddy configuration
-          ansible.builtin.stat:
-            path: "{{ jaunt_caddy_config }}"
-          register: jaunt_caddy_stat
-
-        - name: Require the Caddy configuration
-          ansible.builtin.assert:
-            that:
-              - jaunt_caddy_stat.stat.exists
-            fail_msg: |
-              Caddy is enabled but {{ jaunt_caddy_config }} does not exist.
-              Set jaunt_manage_caddy=false to deploy only on port
-              {{ jaunt_web_port }}, or point jaunt_caddy_config at the
-              active Caddyfile.
-          when: jaunt_manage_caddy
-
-        - name: Back up the Caddy configuration
-          ansible.builtin.copy:
-            src: "{{ jaunt_caddy_config }}"
-            dest: "{{ jaunt_caddy_config }}.jaunt.bak"
-            remote_src: true
-            owner: root
-            group: root
-            mode: "0644"
-
-        - name: Install the Jaunt site block
-          ansible.builtin.blockinfile:
-            path: "{{ jaunt_caddy_config }}"
-            marker: "# {mark} ANSIBLE MANAGED JAUNT SITE"
-            insertafter: EOF
-            block: |
-              https://{{ jaunt_domain }} {
-                  encode zstd gzip
-                  reverse_proxy 127.0.0.1:{{ jaunt_web_port }}
-              }
-
-        - name: Validate the Caddy configuration
-          ansible.builtin.command:
-            argv:
-              - caddy
-              - validate
-              - --config
-              - "{{ jaunt_caddy_config }}"
-              - --adapter
-              - caddyfile
-            chdir: "{{ jaunt_caddy_dir }}"
-          changed_when: false
-
-        - name: Reload Caddy
-          ansible.builtin.command:
-            argv:
-              - caddy
-              - reload
-              - --config
-              - "{{ jaunt_caddy_config }}"
-              - --adapter
-              - caddyfile
-            chdir: "{{ jaunt_caddy_dir }}"
-          changed_when: true
-
-        - name: Wait for the public HTTPS endpoint
-          ansible.builtin.uri:
-            url: "{{ jaunt_caddy_https_health_url }}"
-            status_code: 200
-            return_content: true
-            timeout: 15
-          register: jaunt_caddy_health
-          until: jaunt_caddy_health.status == 200 and (jaunt_caddy_health.json.ok | default(false))
-          retries: 40
-          delay: 3
-      rescue:
-        - name: Check for the Caddy backup
-          ansible.builtin.stat:
-            path: "{{ jaunt_caddy_config }}.jaunt.bak"
-          register: jaunt_caddy_backup
-
-        - name: Restore the previous Caddy configuration
-          ansible.builtin.copy:
-            src: "{{ jaunt_caddy_config }}.jaunt.bak"
-            dest: "{{ jaunt_caddy_config }}"
-            remote_src: true
-            owner: root
-            group: root
-            mode: "0644"
-          when: jaunt_caddy_backup.stat.exists
-
-        - name: Reload Caddy with the previous configuration
-          ansible.builtin.command:
-            argv:
-              - caddy
-              - reload
-              - --config
-              - "{{ jaunt_caddy_config }}"
-              - --adapter
-              - caddyfile
-            chdir: "{{ jaunt_caddy_dir }}"
-          changed_when: true
-          failed_when: false
-          when: jaunt_caddy_backup.stat.exists
-
-        - name: Fail the deployment because Caddy did not serve the site
-          ansible.builtin.fail:
-            msg: >-
-              Caddy did not start serving https://{{ jaunt_domain }}.
-              The previous Caddy configuration was restored.
-
-    # ---------------------------------------------------------------------
     # Cleanup and summary
     # ---------------------------------------------------------------------
     - name: Remove dangling images
@@ -855,8 +738,7 @@
         msg:
           - "Deployment target: {{ inventory_hostname }}."
           - "Deployed commit: {{ (jaunt_deployed_commit.stdout if jaunt_deployed_commit is defined else 'not updated this run') }} ({{ jaunt_repo_branch }})"
-          - "Local URL: http://{{ jaunt_web_bind }}:{{ jaunt_web_port }}"
-          - "Public URL: {{ ('https://' ~ jaunt_domain) if (jaunt_domain | length > 0) else 'not configured (set jaunt_domain and add a Caddy site)' }}"
+          - "Web URL: http://{{ jaunt_web_bind }}:{{ jaunt_web_port }}"
           - "Database backup: {{ jaunt_backup_file | default('none (no database volume yet)') }}"
           - "Rollback images: {{ jaunt_compose_project_name }}-web:previous, {{ jaunt_compose_project_name }}-api:previous"
       tags: always
