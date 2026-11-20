@@ -384,6 +384,7 @@ export function TripDetailPage() {
         locations={weather.locations}
         errors={weather.errors}
         loading={weather.loading}
+        cooldownActive={weather.cooldownActive}
         refresh={weather.refresh}
       />
 

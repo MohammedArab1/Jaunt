@@ -12,6 +12,7 @@ interface TripWeatherSectionProps {
   locations: WeatherLocation[]
   errors: Record<string, string>
   loading: boolean
+  cooldownActive: boolean
   refresh: () => void
 }
 
@@ -20,6 +21,7 @@ export function TripWeatherSection({
   locations,
   errors,
   loading,
+  cooldownActive,
   refresh,
 }: TripWeatherSectionProps) {
   const destinations = tripDestinations(trip)
@@ -49,7 +51,8 @@ export function TripWeatherSection({
             onClick={refresh}
             className="btn-icon-sm h-8 w-8"
             aria-label="Refresh weather"
-            disabled={loading}
+            title={cooldownActive ? 'Try again in a minute' : 'Refresh weather'}
+            disabled={loading || cooldownActive}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -66,7 +69,12 @@ export function TripWeatherSection({
           <p className="text-xs font-medium leading-relaxed text-muted">
             {failedDestinations[0] ? errors[failedDestinations[0].id] : 'Weather is unavailable right now.'}
           </p>
-          <button type="button" className="btn btn-secondary h-9 px-3 text-[10px]" onClick={refresh}>
+          <button
+            type="button"
+            className="btn btn-secondary h-9 px-3 text-[10px]"
+            onClick={refresh}
+            disabled={loading || cooldownActive}
+          >
             Retry
           </button>
         </div>

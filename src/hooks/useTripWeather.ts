@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Trip, WeatherLocation } from '@/types'
 import { tripDestinations } from '@/lib/tripDestinations'
 import {
@@ -16,6 +16,8 @@ interface TripWeatherState {
   lastUpdated: number | null
 }
 
+const MANUAL_REFRESH_COOLDOWN_MS = 60_000
+
 export function useTripWeather(trip: Trip | null | undefined) {
   const [state, setState] = useState<TripWeatherState>({
     locations: [],
@@ -23,7 +25,10 @@ export function useTripWeather(trip: Trip | null | undefined) {
     loading: false,
     lastUpdated: null,
   })
-  const [refreshToken, setRefreshToken] = useState(0)
+  const [refreshRequest, setRefreshRequest] = useState({ token: 0, force: false })
+  const [cooldownUntil, setCooldownUntil] = useState(0)
+  // The ref is the actual gate; state only controls the disabled UI.
+  const cooldownUntilRef = useRef(0)
 
   const destinations = useMemo(() => (trip ? tripDestinations(trip) : []), [trip])
   const destinationsKey = useMemo(
@@ -61,6 +66,8 @@ export function useTripWeather(trip: Trip | null | undefined) {
           const key = weatherCacheKey(trip.id, destination, trip.startDate, trip.endDate)
           const cached = await readWeatherCache(key)
           let location = cached?.data ?? null
+          // A cached result with no usable days is worse than no result: retry it.
+          if (location && !location.days.some((day) => day.available)) location = null
           let error: string | null = null
           const online = typeof navigator === 'undefined' || navigator.onLine
           const stale = !cached || Date.now() - cached.fetchedAt > WEATHER_STALE_MS
@@ -75,11 +82,14 @@ export function useTripWeather(trip: Trip | null | undefined) {
 
           if (location) location = withDestinationDetails(location)
 
-          if (online && stale) {
+          if (online && (stale || refreshRequest.force)) {
             try {
               const fresh = withDestinationDetails(
                 await fetchWeatherLocation(destination, trip.startDate, trip.endDate),
               )
+              if (!fresh.days.some((day) => day.available)) {
+                throw new Error('Weather is unavailable for this destination right now.')
+              }
               await writeWeatherCache({
                 key,
                 profileId: trip.profileId,
@@ -131,7 +141,7 @@ export function useTripWeather(trip: Trip | null | undefined) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     destinationsKey,
-    refreshToken,
+    refreshRequest.token,
     trip?.endDate,
     trip?.id,
     trip?.profileId,
@@ -139,7 +149,8 @@ export function useTripWeather(trip: Trip | null | undefined) {
   ])
 
   useEffect(() => {
-    const refresh = () => setRefreshToken((value) => value + 1)
+    const refresh = () =>
+      setRefreshRequest((current) => ({ token: current.token + 1, force: false }))
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') refresh()
     }
@@ -151,8 +162,23 @@ export function useTripWeather(trip: Trip | null | undefined) {
     }
   }, [])
 
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return
+    const timer = setTimeout(() => setCooldownUntil(0), cooldownUntil - Date.now())
+    return () => clearTimeout(timer)
+  }, [cooldownUntil])
+
   return {
     ...state,
-    refresh: () => setRefreshToken((value) => value + 1),
+    cooldownActive: cooldownUntil > Date.now(),
+    // Manual refresh bypasses the client-side freshness check, but not the
+    // cooldown gate: re-enabling the button in devtools must not send requests.
+    refresh: () => {
+      const now = Date.now()
+      if (now < cooldownUntilRef.current) return
+      cooldownUntilRef.current = now + MANUAL_REFRESH_COOLDOWN_MS
+      setCooldownUntil(cooldownUntilRef.current)
+      setRefreshRequest((current) => ({ token: current.token + 1, force: true }))
+    },
   }
 }

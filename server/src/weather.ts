@@ -133,6 +133,9 @@ const CACHE_MAX_ENTRIES = 400
 const FORECAST_CACHE_MS = 3 * 60 * 60 * 1000
 const HISTORICAL_CACHE_MS = 24 * 60 * 60 * 1000
 const CLIMATE_CACHE_MS = 30 * 24 * 60 * 60 * 1000
+const PARTIAL_CACHE_MS = 10 * 60 * 1000
+const MAX_FETCH_ATTEMPTS = 3
+const RETRY_BASE_MS = 500
 
 const cache = new Map<string, { expires: number; data: WeatherLocationResult }>()
 const inFlight = new Map<string, Promise<WeatherLocationResult>>()
@@ -219,25 +222,42 @@ function dailyFromResponse(data: OpenMeteoResponse, mode: WeatherMode): WeatherD
   })
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function fetchJson(url: URL): Promise<OpenMeteoResponse> {
-  let response: Response
-  try {
-    response = await fetch(url, {
-      signal: AbortSignal.timeout(12_000),
-      headers: { 'User-Agent': 'Jaunt/1.2 (self-hosted trip planner)' },
-    })
-  } catch {
-    throw new WeatherError('The weather service is unavailable right now.')
-  }
+  for (let attempt = 1; ; attempt += 1) {
+    let response: Response
+    try {
+      response = await fetch(url, {
+        signal: AbortSignal.timeout(12_000),
+        headers: { 'User-Agent': 'Jaunt/1.2 (self-hosted trip planner)' },
+      })
+    } catch {
+      throw new WeatherError('The weather service is unavailable right now.')
+    }
 
-  if (!response.ok) {
-    throw new WeatherError(`The weather service returned ${response.status}.`)
-  }
+    if (response.ok) {
+      try {
+        return (await response.json()) as OpenMeteoResponse
+      } catch {
+        throw new WeatherError('The weather service returned an unexpected response.')
+      }
+    }
 
-  try {
-    return (await response.json()) as OpenMeteoResponse
-  } catch {
-    throw new WeatherError('The weather service returned an unexpected response.')
+    const retryable = response.status === 429 || response.status >= 500
+    if (!retryable || attempt >= MAX_FETCH_ATTEMPTS) {
+      throw new WeatherError(`The weather service returned ${response.status}.`)
+    }
+
+    const retryAfter = Number(response.headers.get('retry-after'))
+    const delay = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, 5_000)
+      : RETRY_BASE_MS * 2 ** (attempt - 1)
+
+    console.warn(`Weather request throttled (${response.status}); retrying in ${delay}ms.`)
+    await sleep(delay)
   }
 }
 
@@ -484,21 +504,27 @@ async function fetchClimate(
   }
 
   const rawByDate = new Map<string, WeatherDayResult>()
+  let successfulYears = 0
 
-  await Promise.all(
-    [...datesByYear.entries()].map(async ([, dates]) => {
-      const ordered = [...dates].sort()
-      const rangeStart = ordered[0]
-      const rangeEnd = ordered[ordered.length - 1]
-      if (!rangeStart || !rangeEnd) return
-      try {
-        const days = await fetchArchive(location, rangeStart, rangeEnd)
-        for (const day of days) rawByDate.set(day.date, day)
-      } catch (error) {
-        console.error('Climate archive fetch failed:', error)
-      }
-    }),
-  )
+  // Fetch a year at a time: five concurrent archive requests per destination
+  // can trip Open-Meteo's rate limit, especially with several destinations.
+  for (const dates of datesByYear.values()) {
+    const ordered = [...dates].sort()
+    const rangeStart = ordered[0]
+    const rangeEnd = ordered[ordered.length - 1]
+    if (!rangeStart || !rangeEnd) continue
+    try {
+      const days = await fetchArchive(location, rangeStart, rangeEnd)
+      for (const day of days) rawByDate.set(day.date, day)
+      successfulYears += 1
+    } catch (error) {
+      console.error('Climate archive fetch failed:', error)
+    }
+  }
+
+  if (successfulYears === 0) {
+    throw new WeatherError('The weather service is busy right now. Try again in a moment.')
+  }
 
   return targetDates.map((date) => {
     const samples: WeatherDayResult[] = []
@@ -560,6 +586,8 @@ function modeForDate(date: string, today: string): WeatherMode {
 }
 
 function cacheTtl(days: WeatherDayResult[]): number {
+  // Retry partial results soon instead of holding a gap for hours or weeks.
+  if (days.some((day) => !day.available)) return PARTIAL_CACHE_MS
   if (days.some((day) => day.mode === 'forecast')) return FORECAST_CACHE_MS
   if (days.some((day) => day.mode === 'climate')) return CLIMATE_CACHE_MS
   return HISTORICAL_CACHE_MS
@@ -664,6 +692,12 @@ async function loadWeather(query: WeatherQuery): Promise<WeatherLocationResult> 
     const days = eachDate(query.start, query.end).map(
       (date) => byDate.get(date) ?? unavailableDay(date, modeForDate(date, today)),
     )
+
+    // Never cache an entirely empty result; that would hide the failure and
+    // keep serving it long after the weather service recovers.
+    if (!days.some((day) => day.available)) {
+      throw new WeatherError('Weather is unavailable for this destination right now.')
+    }
 
     const result: WeatherLocationResult = {
       name: location.name,
