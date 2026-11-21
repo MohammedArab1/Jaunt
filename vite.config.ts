@@ -52,6 +52,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,woff2,webmanifest,wasm}'],
+        globIgnores: ['og-image.png'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
