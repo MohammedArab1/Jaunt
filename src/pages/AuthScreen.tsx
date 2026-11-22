@@ -40,7 +40,7 @@ const features = [
 export function AuthScreen() {
   const { mode, login, register, continueOffline } = useAuth()
   const navigate = useNavigate()
-  const [formMode, setFormMode] = useState<'login' | 'register'>('login')
+  const [formMode, setFormMode] = useState<'login' | 'register'>('register')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -79,7 +79,7 @@ export function AuthScreen() {
       navigate('/', { replace: true })
     } catch (cause) {
       if (isNetworkError(cause)) {
-        setError('Can’t reach the Jaunt server. You can continue offline instead.')
+        setError('Can’t reach the Jaunt server. You can use Jaunt without an account instead.')
       } else {
         setError(getErrorMessage(cause))
       }
@@ -145,7 +145,7 @@ export function AuthScreen() {
         </section>
 
         <section className="mt-10 w-full lg:mt-0 lg:max-w-[430px]">
-          <div className="relative overflow-hidden rounded-[32px] border border-fg/10 bg-surface/85 p-6 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-8">
+          <div className="relative overflow-hidden rounded-[32px] border border-fg/10 bg-surface/85 p-5 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-8">
             <div
               className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-coral/10 blur-3xl"
               aria-hidden
@@ -159,21 +159,21 @@ export function AuthScreen() {
                   className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 text-xs font-extrabold text-muted transition hover:text-fg"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Back to offline mode
+                  Back to your offline plans
                 </button>
               ) : null}
 
-              <p className="eyebrow">{isRegister ? 'Join the good days' : 'Welcome back'}</p>
+              <p className="eyebrow">{isRegister ? 'Start free' : 'Welcome back'}</p>
               <h2 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.04em] text-fg">
                 {isRegister ? 'Create your account.' : 'Sign in to Jaunt.'}
               </h2>
               <p className="mt-2 text-sm font-medium leading-relaxed text-muted">
                 {isRegister
-                  ? 'Just an email and a password. No verification hoops.'
+                  ? 'Just an email and a password. Free to use.'
                   : 'Pick up exactly where you left off.'}
               </p>
 
-              <form onSubmit={(event) => void submit(event)} className="mt-6 space-y-4">
+              <form onSubmit={(event) => void submit(event)} className="mt-5 space-y-3.5 sm:space-y-4">
                 <div>
                   <label className="field-label" htmlFor="auth-email">
                     Email
@@ -217,7 +217,7 @@ export function AuthScreen() {
                     </button>
                   </div>
                   {isRegister ? (
-                    <p className="mt-1.5 text-[10px] font-medium text-muted/60">
+                    <p className="mt-1 text-[10px] font-medium text-muted/60">
                       Your password can’t be recovered by email, so keep it somewhere safe.
                     </p>
                   ) : null}
@@ -238,7 +238,7 @@ export function AuthScreen() {
                 </button>
               </form>
 
-              <p className="mt-4 text-center text-xs font-semibold text-muted">
+              <p className="mt-3 text-center text-xs font-semibold text-muted">
                 {isRegister ? 'Already have an account?' : 'New to Jaunt?'}{' '}
                 <button
                   type="button"
@@ -249,7 +249,7 @@ export function AuthScreen() {
                 </button>
               </p>
 
-              <div className="my-5 flex items-center gap-3">
+              <div className="my-4 flex items-center gap-3">
                 <span className="h-px flex-1 bg-fg/[0.08]" />
                 <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted/50">
                   or
@@ -259,10 +259,10 @@ export function AuthScreen() {
 
               <button type="button" onClick={goOffline} className="btn btn-secondary w-full">
                 <WifiOff className="h-4 w-4" />
-                {isOfflineGuest ? 'Back to offline mode' : 'Continue offline'}
+                {isOfflineGuest ? 'Back to your offline plans' : 'Use without an account'}
               </button>
               <p className="mt-2.5 text-center text-[10px] font-medium leading-relaxed text-muted/60">
-                No account needed. Offline profiles and their plans stay in this browser.
+                No account needed. Your plans stay in this browser.
               </p>
             </div>
           </div>
