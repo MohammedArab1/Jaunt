@@ -97,6 +97,11 @@ export const api = {
         body: { email, password },
       }),
     logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+    deleteAccount: (password: string) =>
+      request<{ ok: true }>('/api/auth/account', {
+        method: 'DELETE',
+        body: { password },
+      }),
     updateProfile: (displayName: string, color: string) =>
       request<{ user: AuthUser }>('/api/auth/profile', {
         method: 'PATCH',

@@ -55,6 +55,9 @@ test('rejects javascript URLs and accepts https URLs in sync', async ({ request,
   const origin = baseURL ?? 'http://127.0.0.1:8080'
   const headers = sameOriginHeaders(origin)
   const email = uniqueEmail('security.url')
+  const testId = `${Date.now()}-${Math.floor(Math.random() * 10_000)}`
+  const badId = `bad-url-${testId}`
+  const goodId = `good-url-${testId}`
 
   const register = await request.post('/api/auth/register', {
     headers,
@@ -67,7 +70,7 @@ test('rejects javascript URLs and accepts https URLs in sync', async ({ request,
     data: {
       lastRevision: 0,
       trips: [],
-      activities: [activity('bad-url-test', 'javascript:alert(1)')],
+      activities: [activity(badId, 'javascript:alert(1)')],
       packingItems: [],
       attachments: [],
       deletions: [],
@@ -81,7 +84,7 @@ test('rejects javascript URLs and accepts https URLs in sync', async ({ request,
     data: {
       lastRevision: 0,
       trips: [],
-      activities: [activity('good-url-test', 'https://example.com')],
+      activities: [activity(goodId, 'https://example.com')],
       packingItems: [],
       attachments: [],
       deletions: [],
@@ -90,7 +93,7 @@ test('rejects javascript URLs and accepts https URLs in sync', async ({ request,
   expect(goodSync.status()).toBe(200)
   expect((await goodSync.json()).activities).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ id: 'good-url-test', url: 'https://example.com' }),
+      expect.objectContaining({ id: goodId, url: 'https://example.com' }),
     ]),
   )
 })

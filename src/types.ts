@@ -147,6 +147,17 @@ export interface Backup {
   attachments: BackupFile[]
 }
 
+export interface AccountExport {
+  format: 'jaunt-account-export'
+  version: 1
+  exportedAt: string
+  account: AuthUser
+  trips: Trip[]
+  activities: Activity[]
+  packingItems: PackingItem[]
+  attachments: BackupFile[]
+}
+
 export interface ActivityDefaults {
   date?: string
   tripId?: string

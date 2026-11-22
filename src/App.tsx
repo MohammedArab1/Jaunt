@@ -16,6 +16,7 @@ import { TripDetailPage } from '@/pages/TripDetailPage'
 import { PackingListPage } from '@/pages/PackingListPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { PublicTripPage } from '@/pages/PublicTripPage'
+import { PrivacyPage } from '@/pages/PrivacyPage'
 
 function AppRoutes() {
   return (
@@ -52,11 +53,14 @@ export default function App() {
   const publicToken = isPublicShare
     ? (location.pathname.slice('/share/'.length).split('/')[0] ?? '')
     : ''
+  const isPrivacy = location.pathname === '/privacy'
 
   let content: React.ReactNode
 
   if (isPublicShare) {
     content = <PublicTripPage token={publicToken} />
+  } else if (isPrivacy) {
+    content = <PrivacyPage />
   } else if (!ready) {
     content = <Splash />
   } else if (mode === 'account' && user) {

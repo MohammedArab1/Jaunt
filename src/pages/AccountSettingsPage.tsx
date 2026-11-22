@@ -6,26 +6,32 @@ import {
   ChevronRight,
   Cloud,
   CloudOff,
+  Download,
   Import as ImportIcon,
   KeyRound,
+  Loader2,
   LogOut,
   Pencil,
   RefreshCw,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { db } from '@/db'
 import type { Profile } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import { useProfile } from '@/context/ProfileContext'
 import { useSync } from '@/context/SyncContext'
 import { useToast } from '@/context/ToastContext'
+import { downloadAccountExport } from '@/lib/backup'
 import { importGuestProfileIntoAccount } from '@/lib/importGuest'
-import { pluralize } from '@/lib/utils'
+import { getErrorMessage, pluralize } from '@/lib/utils'
 import { Page } from '@/components/ui/Page'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Avatar } from '@/components/ui/Avatar'
 import { Wordmark } from '@/components/ui/Logo'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { Field } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { ProfileForm } from '@/components/profile/ProfileForm'
 import { InstallCard } from '@/components/settings/InstallCard'
@@ -38,7 +44,7 @@ interface GuestStats {
 }
 
 export function AccountSettingsPage() {
-  const { user, logout, updateAccount } = useAuth()
+  const { user, logout, deleteAccount, updateAccount } = useAuth()
   const { guestProfiles } = useProfile()
   const { status, error, lastSyncedAt, syncNow } = useSync()
   const { toast } = useToast()
@@ -48,6 +54,9 @@ export function AccountSettingsPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [importTarget, setImportTarget] = useState<Profile | null>(null)
+  const [exportBusy, setExportBusy] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
 
   const tripCount = useLiveQuery(
     () => (userId ? db.trips.where('profileId').equals(userId).count() : Promise.resolve(0)),
@@ -115,6 +124,18 @@ export function AccountSettingsPage() {
     toast(`Imported ${imported.join(', ')}.`, 'success', 5000)
     setImportTarget(null)
     void syncNow()
+  }
+
+  const downloadData = async () => {
+    setExportBusy(true)
+    try {
+      await downloadAccountExport(user)
+      toast('Account export downloaded.', 'success')
+    } catch (cause) {
+      toast(getErrorMessage(cause), 'error')
+    } finally {
+      setExportBusy(false)
+    }
   }
 
   return (
@@ -231,6 +252,64 @@ export function AccountSettingsPage() {
         </div>
       </section>
 
+      <section className="mt-8">
+        <div className="mb-3">
+          <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">Your data</h2>
+          <p className="mt-1 text-xs font-medium text-muted">
+            Take a copy of your plans, or close your account for good.
+          </p>
+        </div>
+
+        <div className="surface divide-y divide-fg/[0.06] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => void downloadData()}
+            disabled={exportBusy}
+            className="flex w-full items-center gap-3.5 p-4 text-left transition hover:bg-fg/[0.03] disabled:opacity-60"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04] text-mint">
+              {exportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-extrabold text-fg">
+                {exportBusy ? 'Preparing your export…' : 'Download my data'}
+              </span>
+              <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
+                A JSON copy of your trips, plans, packing lists, and cached ticket files.
+              </span>
+            </span>
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-muted/40">
+              JSON
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="flex w-full items-center gap-3.5 p-4 text-left transition hover:bg-punch/[0.05]"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-punch/15 bg-punch/[0.07] text-punch">
+              <Trash2 className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-extrabold text-fg">Delete account</span>
+              <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
+                Permanently remove your account and all its data.
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+          </button>
+        </div>
+
+        <Link
+          to="/privacy"
+          className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted/60 transition hover:text-fg"
+        >
+          <ShieldCheck className="h-3 w-3" />
+          Read the privacy notes
+        </Link>
+      </section>
+
       {guestProfiles && guestProfiles.length > 0 ? (
         <section className="mt-8">
           <div className="mb-3">
@@ -306,6 +385,9 @@ export function AccountSettingsPage() {
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted/50">
           Version 1.2 · Synced & offline
         </p>
+        <Link to="/privacy" className="text-[10px] font-semibold text-muted/60 transition hover:text-fg">
+          Privacy
+        </Link>
       </footer>
 
       <ConfirmDialog
@@ -324,6 +406,40 @@ export function AccountSettingsPage() {
           <p className="text-sm font-semibold leading-relaxed text-muted">
             Anything that hasn't synced yet will be lost. {status === 'offline' ? 'You are currently offline, so sync first.' : 'Use Sync now first if you are unsure.'}
           </p>
+        </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open)
+          if (!open) setDeletePassword('')
+        }}
+        title="Delete your account?"
+        description="This permanently deletes your account, trips, plans, packing lists, and ticket files from the server and this device."
+        confirmLabel="Delete account"
+        destructive
+        onConfirm={async () => {
+          if (!deletePassword) throw new Error('Enter your password.')
+          await deleteAccount(deletePassword)
+          toast('Your account was deleted.', 'success', 5000)
+        }}
+      >
+        <div className="space-y-3">
+          <p className="rounded-2xl border border-punch/15 bg-punch/[0.05] p-4 text-sm font-semibold leading-relaxed text-muted">
+            This cannot be undone. Download your data first if you want a copy.
+          </p>
+          <Field label="Password" htmlFor="delete-account-password">
+            <input
+              id="delete-account-password"
+              type="password"
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+              autoComplete="current-password"
+              className="field"
+              placeholder="Your password"
+            />
+          </Field>
         </div>
       </ConfirmDialog>
 

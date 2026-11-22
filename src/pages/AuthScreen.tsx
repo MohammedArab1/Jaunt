@@ -9,7 +9,7 @@ import {
   Sparkles,
   WifiOff,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { isNetworkError } from '@/lib/api'
 import { getErrorMessage } from '@/lib/utils'
@@ -264,6 +264,12 @@ export function AuthScreen() {
               <p className="mt-2.5 text-center text-[10px] font-medium leading-relaxed text-muted/60">
                 No account needed. Your plans stay in this browser.
               </p>
+              <Link
+                to="/privacy"
+                className="mt-4 block text-center text-[10px] font-semibold text-muted/60 transition hover:text-fg"
+              >
+                Privacy
+              </Link>
             </div>
           </div>
         </section>

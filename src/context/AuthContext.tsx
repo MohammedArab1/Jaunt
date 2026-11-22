@@ -24,6 +24,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  deleteAccount: (password: string) => Promise<void>
   updateAccount: (displayName: string, color: string) => Promise<void>
   continueOffline: () => void
   exitOffline: () => void
@@ -170,6 +171,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOffline(false)
   }, [user])
 
+  const deleteAccount = useCallback(
+    async (password: string) => {
+      if (!user) return
+      await api.auth.deleteAccount(password)
+      await clearAccountCache(user.id)
+      writeCachedUser(null)
+      setUser(null)
+      setMode('unset')
+      setOffline(false)
+    },
+    [user],
+  )
+
   const updateAccount = useCallback(
     async (displayName: string, color: string) => {
       const response = await api.auth.updateProfile(displayName, color)
@@ -199,6 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      deleteAccount,
       updateAccount,
       continueOffline,
       exitOffline,
@@ -211,6 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      deleteAccount,
       updateAccount,
       continueOffline,
       exitOffline,

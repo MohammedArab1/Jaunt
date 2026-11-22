@@ -16,11 +16,15 @@ function uniqueEmail(prefix: string): string {
 
 async function register(page: Page, email: string) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'create an account' }).click()
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page.getByRole('heading', { name: /Good/ })).toBeVisible()
+}
+
+async function switchToSignIn(page: Page) {
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Sign in to Jaunt.' })).toBeVisible()
 }
 
 async function addPlan(page: Page, name: string) {
@@ -40,9 +44,10 @@ async function loginOnNewDevice(browser: Browser, email: string): Promise<{ page
   })
   const page = await context.newPage()
   await page.goto('/')
+  await switchToSignIn(page)
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password', { exact: true }).fill(password)
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByRole('heading', { name: /Good/ })).toBeVisible()
   return { page, close: () => context.close() }
 }
@@ -127,9 +132,9 @@ test('imports an offline profile into an account', async ({ page }) => {
   await page.getByRole('link', { name: 'More' }).click()
   await page.getByRole('button', { name: 'Sign out of this device' }).click()
   await page.getByRole('button', { name: 'Sign out', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Sign in to Jaunt.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create your account.' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Continue offline' }).click()
+  await page.getByRole('button', { name: 'Use without an account' }).click()
   await page.getByLabel('Your name').fill('Offline Tester')
   await page.getByRole('button', { name: 'Start planning' }).click()
   await expect(page.getByRole('heading', { name: /Good/ })).toBeVisible()
@@ -142,9 +147,10 @@ test('imports an offline profile into an account', async ({ page }) => {
 
   await page.getByRole('link', { name: 'More' }).click()
   await page.getByRole('link', { name: /Sync across your devices/ }).click()
+  await switchToSignIn(page)
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password', { exact: true }).fill(password)
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByRole('heading', { name: /Good/ })).toBeVisible()
 
   await page.getByRole('link', { name: 'More' }).click()
@@ -430,19 +436,20 @@ test('changes the account password and signs out other devices', async ({ page, 
     await expect(page.getByText(/Password changed/)).toBeVisible()
 
     await second.page.reload()
-    await expect(second.page.getByRole('heading', { name: 'Sign in to Jaunt.' })).toBeVisible()
+    await expect(second.page.getByRole('heading', { name: 'Create your account.' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Sign out of this device' }).click()
     await page.getByRole('button', { name: 'Sign out', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'Sign in to Jaunt.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Create your account.' })).toBeVisible()
 
+    await switchToSignIn(page)
     await page.getByLabel('Email').fill(email)
     await page.getByLabel('Password', { exact: true }).fill(password)
-    await page.getByRole('button', { name: 'Sign in' }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await expect(page.getByRole('alert')).toHaveText(/Email or password is incorrect/)
 
     await page.getByLabel('Password', { exact: true }).fill(newPassword)
-    await page.getByRole('button', { name: 'Sign in' }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await expect(page.getByRole('heading', { name: /Good/ })).toBeVisible()
   } finally {
     await second.close()

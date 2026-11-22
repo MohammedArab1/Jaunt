@@ -18,6 +18,13 @@ import {
   startSession,
   verifyPassword,
 } from '../auth.js'
+import {
+  acquireSyncLock,
+  addTombstones,
+  bumpTripRevisions,
+  getAcceptedMemberIds,
+  getTripParticipantIds,
+} from '../tripAccess.js'
 
 const router = Router()
 
@@ -57,6 +64,10 @@ const passwordChangeSchema = z.object({
     .string()
     .min(8, 'New password must be at least 8 characters.')
     .max(128, 'Password is too long.'),
+})
+
+const deleteAccountSchema = z.object({
+  password: z.string().min(1, 'Enter your password.').max(128, 'Password is too long.'),
 })
 
 function asyncHandler(
@@ -161,6 +172,115 @@ router.post(
     await deleteCurrentSession(req)
     clearSessionCookie(res)
     res.json({ ok: true })
+  }),
+)
+
+router.delete(
+  '/account',
+  requireAuth,
+  authLimiter,
+  asyncHandler(async (req, res) => {
+    const parsed = deleteAccountSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: firstIssue(parsed.error) })
+      return
+    }
+
+    const userId = currentUser(req).id
+    if (!passwordFitsBcrypt(parsed.data.password)) {
+      res.status(400).json({ error: 'Password is too long.' })
+      return
+    }
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await acquireSyncLock(client)
+
+      const passwordResult = await client.query<{ password_hash: string }>(
+        'SELECT password_hash FROM users WHERE id = $1',
+        [userId],
+      )
+      const passwordRow = passwordResult.rows[0]
+      if (!passwordRow || !(await verifyPassword(parsed.data.password, passwordRow.password_hash))) {
+        await client.query('ROLLBACK')
+        res.status(400).json({ error: 'Password is incorrect.' })
+        return
+      }
+
+      const deletedAt = Date.now()
+      const ownedTrips = await client.query<{ id: string }>(
+        'SELECT id FROM trips WHERE user_id = $1',
+        [userId],
+      )
+
+      // Remove the account from shared trips and leave tombstones so other
+      // members' offline caches drop the owner's trips and files.
+      for (const trip of ownedTrips.rows) {
+        const memberIds = await getAcceptedMemberIds(client, trip.id)
+        if (memberIds.length > 0) {
+          const activities = await client.query<{ id: string }>(
+            'SELECT id FROM activities WHERE trip_id = $1',
+            [trip.id],
+          )
+          const attachments = await client.query<{ id: string }>(
+            `SELECT id FROM attachments
+             WHERE activity_id IN (SELECT id FROM activities WHERE trip_id = $1)`,
+            [trip.id],
+          )
+          const packingItems = await client.query<{ id: string }>(
+            'SELECT id FROM packing_items WHERE trip_id = $1',
+            [trip.id],
+          )
+
+          for (const memberId of memberIds) {
+            await addTombstones(client, [memberId], 'trip', trip.id, deletedAt)
+            for (const activity of activities.rows) {
+              await addTombstones(client, [memberId], 'activity', activity.id, deletedAt)
+            }
+            for (const attachment of attachments.rows) {
+              await addTombstones(client, [memberId], 'attachment', attachment.id, deletedAt)
+            }
+            for (const item of packingItems.rows) {
+              await addTombstones(client, [memberId], 'packing', item.id, deletedAt)
+            }
+          }
+        }
+
+        await client.query('DELETE FROM trip_members WHERE trip_id = $1', [trip.id])
+      }
+
+      const memberTrips = await client.query<{ trip_id: string }>(
+        `SELECT tm.trip_id
+         FROM trip_members tm
+         JOIN trips t ON t.id = tm.trip_id
+         WHERE tm.user_id = $1 AND t.user_id <> $1`,
+        [userId],
+      )
+
+      for (const tripId of [...new Set(memberTrips.rows.map((row) => row.trip_id))]) {
+        const participants = await getTripParticipantIds(client, tripId)
+        const packingItems = await client.query<{ id: string }>(
+          'SELECT id FROM packing_items WHERE trip_id = $1 AND owner_user_id = $2',
+          [tripId, userId],
+        )
+        for (const item of packingItems.rows) {
+          await addTombstones(client, participants, 'packing', item.id, deletedAt)
+        }
+        await bumpTripRevisions(client, tripId)
+      }
+
+      await client.query('DELETE FROM users WHERE id = $1', [userId])
+      await client.query('COMMIT')
+      clearSessionCookie(res)
+      res.setHeader('Cache-Control', 'no-store')
+      res.json({ ok: true })
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined)
+      throw error
+    } finally {
+      client.release()
+    }
   }),
 )
 

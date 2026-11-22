@@ -366,6 +366,9 @@ function GuestSettingsPage() {
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted/50">
           Version 1.2 · Local-first, good-days-first
         </p>
+        <Link to="/privacy" className="text-[10px] font-semibold text-muted/60 transition hover:text-fg">
+          Privacy
+        </Link>
       </footer>
 
       {editOpen ? (

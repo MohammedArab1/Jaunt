@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import type { Backup, BackupFile, Profile } from '@/types'
+import type { AccountExport, AuthUser, Backup, BackupFile, Profile } from '@/types'
 import { isPackingCategory } from './packing'
 import { todayKey } from './dates'
 import { safeExternalUrl } from './utils'
@@ -68,18 +68,56 @@ export async function buildBackup(): Promise<Backup> {
   }
 }
 
-export async function downloadBackup(): Promise<void> {
-  const backup = await buildBackup()
-  const json = JSON.stringify(backup)
+function downloadJson(filename: string, data: unknown): void {
+  const json = JSON.stringify(data)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = `jaunt-backup-${todayKey()}.json`
+  anchor.download = filename
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 2000)
+}
+
+export async function downloadBackup(): Promise<void> {
+  downloadJson(`jaunt-backup-${todayKey()}.json`, await buildBackup())
+}
+
+export async function buildAccountExport(user: AuthUser): Promise<AccountExport> {
+  const [trips, activities, packingItems, attachments] = await Promise.all([
+    db.trips.where('profileId').equals(user.id).toArray(),
+    db.activities.where('profileId').equals(user.id).toArray(),
+    db.packingItems.where('profileId').equals(user.id).toArray(),
+    db.attachments.where('profileId').equals(user.id).toArray(),
+  ])
+  const files = await db.files.bulkGet(attachments.map((attachment) => attachment.id))
+
+  const exportedAttachments: BackupFile[] = []
+  for (let index = 0; index < attachments.length; index += 1) {
+    const attachment = attachments[index]
+    const blob = files[index]?.blob
+    exportedAttachments.push({
+      ...attachment,
+      data: blob ? await blobToBase64(blob) : '',
+    })
+  }
+
+  return {
+    format: 'jaunt-account-export',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    account: user,
+    trips,
+    activities,
+    packingItems,
+    attachments: exportedAttachments,
+  }
+}
+
+export async function downloadAccountExport(user: AuthUser): Promise<void> {
+  downloadJson(`jaunt-account-${todayKey()}.json`, await buildAccountExport(user))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
