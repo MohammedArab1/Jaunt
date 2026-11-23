@@ -52,10 +52,10 @@ cloudflared on the VPS
    ▼
 nginx web container
    ├── serves the React app + service worker
-   └── proxies /api ──► Node API (Express + sessions) ──► PostgreSQL
+   └── proxies /api ──► Node API replicas (Express + sessions) ──► PostgreSQL
 ```
 
-Cloudflare terminates TLS and routes `planjaunt.com` through a Cloudflare Tunnel to `cloudflared` on the host. `cloudflared` forwards to nginx on `127.0.0.1:8080`; nginx serves the built app and proxies `/api` to the API container. The API owns accounts, sessions, sync, and attachment files. PostgreSQL is the durable account store. The browser keeps an IndexedDB mirror so a signed-in account still opens and works offline.
+Cloudflare terminates TLS and routes `planjaunt.com` through a Cloudflare Tunnel to `cloudflared` on the host. `cloudflared` forwards to nginx on `127.0.0.1:8080`; nginx serves the built app and load-balances `/api` across the API replicas (`API_REPLICAS`, default 3). The API owns accounts, sessions, sync, and attachment files. PostgreSQL is the durable account store, so any API replica can serve any request. Schema initialization is serialized with a PostgreSQL advisory lock when replicas start together. The browser keeps an IndexedDB mirror so a signed-in account still opens and works offline.
 
 ### Sync model
 
@@ -178,12 +178,24 @@ Each run:
    database password.
 3. Dumps PostgreSQL to `backups/` (14-day retention) and tests the archive.
 4. Builds `api` then `web` with `--pull` and a cache-busting build argument.
-5. Runs `docker compose down --remove-orphans`, then
-   `docker compose up -d --remove-orphans --force-recreate --wait`.
+5. Rolls the API replicas onto the new image one container at a time, then
+   recreates the web container. PostgreSQL is left running.
 6. Checks `/api/health` on the host's web port.
 7. Removes dangling images and build cache older than 24 hours.
-8. If the new containers fail to become healthy, retags the previous images
-   and brings them back automatically.
+8. If the rollout or health check fails, retags the previous images and rolls
+   the API back one container at a time, then recreates web on the previous
+   image.
+
+API updates are rolling: `ansible/rollout.sh` replaces one API container at a
+time and waits for it to become healthy before continuing, so the other
+replicas keep serving. PostgreSQL is never restarted by a deploy. The web
+container owns the published host port, so it is recreated rather than rolled
+and a release can briefly interrupt the web layer; true zero-downtime web
+updates would need a separate ingress and multiple web replicas.
+
+Database service changes are deliberately not applied by a deploy. PostgreSQL is
+left running; if you change the `db` service definition, restart it deliberately
+with `docker compose up -d db`.
 
 The playbook does not manage Cloudflare Tunnel, DNS, or TLS. For
 `planjaunt.com`, configure the Cloudflare Tunnel to forward to
@@ -209,7 +221,9 @@ ssh mohammed-arab@10.0.0.251
 cd /home/mohammed-arab/Desktop/Programming/Jaunt
 docker tag jaunt-web:previous jaunt-web:latest
 docker tag jaunt-api:previous jaunt-api:latest
-docker compose up -d --force-recreate --remove-orphans
+# Use your configured API_REPLICAS value instead of 3 if it differs.
+bash ansible/rollout.sh api 3 "$PWD" jaunt "$PWD/docker-compose.yml"
+docker compose up -d --no-deps --force-recreate --wait web
 ```
 
 `COOKIE_SECURE` becomes `true` automatically when `jaunt_domain` is set. For a
@@ -421,7 +435,8 @@ server/                 Node + Express API
 deploy/nginx.conf       static app + /api reverse proxy + caching
 Dockerfile              web image
 server/Dockerfile       API image
-docker-compose.yml      web + api + db
+docker-compose.yml      web + api replicas + db
+ansible/rollout.sh      rolling API container replacement
 tests/                  guest/offline Playwright tests
 tests/account/          full-stack account Playwright tests
 ```
@@ -454,6 +469,7 @@ Jaunt targets **Baseline 2023** (Chrome/Edge 111+, Firefox 115+, Safari 16.2+). 
 | Variable | Service | Description |
 | --- | --- | --- |
 | `POSTGRES_PASSWORD` | db, api | Required database password. |
+| `API_REPLICAS` | api | Number of API containers behind nginx (default `3`). |
 | `WEB_PORT` | web | Public host port (default `8080`). |
 | `DB_PORT` | db | Local-only host port mapped for development (default `55432`). |
 | `COOKIE_SECURE` | api | `true` for HTTPS, `false` for plain HTTP localhost. |

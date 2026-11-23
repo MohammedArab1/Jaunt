@@ -15,6 +15,10 @@ jaunt_repo_branch: main
 # deployment directory and the existing container names on the host.
 jaunt_compose_project_name: jaunt
 
+# Number of stateless API replicas behind nginx. The deploy script reads this
+# value, so it is the single source of truth for the replica count.
+jaunt_api_replicas: 3
+
 # Web port. The container still listens on port 80 internally. The host
 # binding is controlled by jaunt_web_bind: keep 127.0.0.1 when a Cloudflare
 # Tunnel or another local proxy forwards to it, or use 0.0.0.0 to expose it

@@ -35,7 +35,20 @@ export async function prepareDatabase(): Promise<void> {
     }
   }
 
-  await pool.query(schemaSql)
+  // API replicas can start together after a recreate. Serialize the idempotent
+  // schema statements so concurrent CREATE/ALTER statements cannot race.
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('jaunt-schema')::bigint)")
+    await client.query(schemaSql)
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function closeDatabase(): Promise<void> {

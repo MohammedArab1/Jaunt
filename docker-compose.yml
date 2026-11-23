@@ -35,6 +35,9 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    # Stateless; the web container load-balances across these replicas.
+    deploy:
+      replicas: ${API_REPLICAS:-3}
 
   web:
     build:

@@ -15,3 +15,4 @@ jaunt_postgres_password: ""
 # jaunt_domain: jaunt.example.com
 # jaunt_session_days: 180
 # jaunt_web_port: 8080
+# jaunt_api_replicas: 3
