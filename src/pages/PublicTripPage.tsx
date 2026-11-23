@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  ArrowRight,
   CalendarDays,
   Check,
   Clock,
@@ -25,6 +26,7 @@ import {
 } from '@/lib/dates'
 import { cssVars, hexAlpha, pluralize } from '@/lib/utils'
 import { Wordmark } from '@/components/ui/Logo'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { TypeBadge } from '@/components/ui/TypeBadge'
 import { EmptyState } from '@/components/ui/EmptyState'
 
@@ -164,10 +166,13 @@ export function PublicTripPage({ token }: PublicTripPageProps) {
           <Link to="/" className="inline-flex rounded-xl" aria-label="Open Jaunt">
             <Wordmark markSize={30} />
           </Link>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-fg/10 bg-fg/[0.04] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-muted">
-            <ShieldCheck className="h-3 w-3" />
-            Read-only
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-fg/10 bg-fg/[0.04] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-muted">
+              <ShieldCheck className="h-3 w-3" />
+              Read-only
+            </span>
+            <ThemeToggle />
+          </div>
         </header>
 
         <section
@@ -261,13 +266,19 @@ export function PublicTripPage({ token }: PublicTripPageProps) {
         </div>
 
         <footer className="mt-12 border-t border-fg/[0.06] pt-6 text-center">
-          <Wordmark markSize={24} />
-          <p className="mx-auto mt-2 max-w-md text-[10px] font-medium leading-relaxed text-muted/60">
+          <Link to="/" className="inline-flex rounded-xl" aria-label="Open Jaunt">
+            <Wordmark markSize={24} />
+          </Link>
+          <p className="mt-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted/50">
+            Made with Jaunt
+          </p>
+          <p className="mx-auto mt-1 max-w-md text-[10px] font-medium leading-relaxed text-muted/60">
             This is a read-only shared itinerary. Tickets, confirmation numbers, links, and notes stay
             private.
           </p>
-          <Link to="/" className="btn btn-secondary mt-4 h-9 px-4 text-xs">
-            Open Jaunt
+          <Link to="/" className="btn btn-primary mt-4 h-9 px-4 text-xs">
+            <ArrowRight className="h-3.5 w-3.5" />
+            Plan your own trip
           </Link>
         </footer>
       </div>

@@ -12,6 +12,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { isNetworkError } from '@/lib/api'
+import { FEEDBACK_URL } from '@/lib/links'
 import { getErrorMessage } from '@/lib/utils'
 import { Wordmark } from '@/components/ui/Logo'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
@@ -264,12 +265,19 @@ export function AuthScreen() {
               <p className="mt-2.5 text-center text-[10px] font-medium leading-relaxed text-muted/60">
                 No account needed. Your plans stay in this browser.
               </p>
-              <Link
-                to="/privacy"
-                className="mt-4 block text-center text-[10px] font-semibold text-muted/60 transition hover:text-fg"
-              >
-                Privacy
-              </Link>
+              <div className="mt-4 flex items-center justify-center gap-4 text-[10px] font-semibold text-muted/60">
+                <Link to="/privacy" className="transition hover:text-fg">
+                  Privacy
+                </Link>
+                <a
+                  href={FEEDBACK_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition hover:text-fg"
+                >
+                  Feedback
+                </a>
+              </div>
             </div>
           </div>
         </section>

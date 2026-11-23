@@ -407,6 +407,17 @@ test('creates a read-only public link and revokes it', async ({ browser }) => {
     await expect(publicPage.getByText('SECRET123')).toHaveCount(0)
     await expect(publicPage.getByText('Bring a jacket')).toHaveCount(0)
     await expect(publicPage.getByText('Read-only', { exact: true })).toBeVisible()
+    await expect(publicPage.getByText('Made with Jaunt')).toBeVisible()
+    await expect(publicPage.getByRole('link', { name: 'Plan your own trip' })).toHaveAttribute(
+      'href',
+      '/',
+    )
+
+    const themeToggle = publicPage.getByRole('button', { name: /Switch to (light|dark) mode/ })
+    await expect(themeToggle).toBeVisible()
+    const initialTheme = (await publicPage.locator('html').getAttribute('data-theme')) ?? 'dark'
+    await themeToggle.click()
+    await expect(publicPage.locator('html')).not.toHaveAttribute('data-theme', initialTheme)
 
     await owner.getByRole('button', { name: 'Stop sharing' }).click()
     await owner.getByRole('button', { name: 'Turn off link' }).click()

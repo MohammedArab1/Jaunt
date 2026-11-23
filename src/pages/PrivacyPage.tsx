@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { ArrowLeft, ShieldAlert } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { FEEDBACK_URL } from '@/lib/links'
 import { Wordmark } from '@/components/ui/Logo'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
@@ -147,7 +148,7 @@ export function PrivacyPage() {
             <p className="mt-2">
               Open an issue in the{' '}
               <a
-                href="https://github.com/MohammedArab1/Jaunt/issues"
+                href={FEEDBACK_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-bold text-coral underline decoration-coral/30 underline-offset-4 transition hover:decoration-coral"

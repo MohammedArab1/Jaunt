@@ -25,6 +25,7 @@ import { useSync } from '@/context/SyncContext'
 import { useToast } from '@/context/ToastContext'
 import { downloadAccountExport } from '@/lib/backup'
 import { importGuestProfileIntoAccount } from '@/lib/importGuest'
+import { FEEDBACK_URL } from '@/lib/links'
 import { getErrorMessage, pluralize } from '@/lib/utils'
 import { Page } from '@/components/ui/Page'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -385,9 +386,19 @@ export function AccountSettingsPage() {
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted/50">
           Version 1.2 · Synced & offline
         </p>
-        <Link to="/privacy" className="text-[10px] font-semibold text-muted/60 transition hover:text-fg">
-          Privacy
-        </Link>
+        <div className="flex items-center gap-4 text-[10px] font-semibold text-muted/60">
+          <Link to="/privacy" className="transition hover:text-fg">
+            Privacy
+          </Link>
+          <a
+            href={FEEDBACK_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition hover:text-fg"
+          >
+            Feedback
+          </a>
+        </div>
       </footer>
 
       <ConfirmDialog
