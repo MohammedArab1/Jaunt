@@ -25,7 +25,7 @@ import { useSync } from '@/context/SyncContext'
 import { useToast } from '@/context/ToastContext'
 import { downloadAccountExport } from '@/lib/backup'
 import { importGuestProfileIntoAccount } from '@/lib/importGuest'
-import { FEEDBACK_URL } from '@/lib/links'
+import { FEEDBACK_URL, REPOSITORY_URL } from '@/lib/links'
 import { getErrorMessage, pluralize } from '@/lib/utils'
 import { Page } from '@/components/ui/Page'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -397,6 +397,14 @@ export function AccountSettingsPage() {
             className="transition hover:text-fg"
           >
             Feedback
+          </a>
+          <a
+            href={REPOSITORY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition hover:text-fg"
+          >
+            Open source
           </a>
         </div>
       </footer>

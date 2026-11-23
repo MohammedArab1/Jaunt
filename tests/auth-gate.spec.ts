@@ -8,6 +8,10 @@ test('shows account choices first and still allows offline mode', async ({ page 
     'href',
     'https://github.com/MohammedArab1/Jaunt/issues',
   )
+  await expect(page.getByRole('link', { name: 'Open source' })).toHaveAttribute(
+    'href',
+    'https://github.com/MohammedArab1/Jaunt',
+  )
 
   await page.getByRole('button', { name: 'Use without an account' }).click()
   await expect(page.getByText("Who's planning?")).toBeVisible()

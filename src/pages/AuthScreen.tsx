@@ -12,7 +12,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { isNetworkError } from '@/lib/api'
-import { FEEDBACK_URL } from '@/lib/links'
+import { FEEDBACK_URL, REPOSITORY_URL } from '@/lib/links'
 import { getErrorMessage } from '@/lib/utils'
 import { Wordmark } from '@/components/ui/Logo'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
@@ -276,6 +276,14 @@ export function AuthScreen() {
                   className="transition hover:text-fg"
                 >
                   Feedback
+                </a>
+                <a
+                  href={REPOSITORY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition hover:text-fg"
+                >
+                  Open source
                 </a>
               </div>
             </div>

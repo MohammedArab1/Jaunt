@@ -18,7 +18,7 @@ import {
 import { Link } from 'react-router-dom'
 import { db } from '@/db'
 import { downloadBackup, restoreBackup } from '@/lib/backup'
-import { FEEDBACK_URL } from '@/lib/links'
+import { FEEDBACK_URL, REPOSITORY_URL } from '@/lib/links'
 import { formatBytes, getErrorMessage, pluralize } from '@/lib/utils'
 import { useProfile } from '@/context/ProfileContext'
 import { useAuth } from '@/context/AuthContext'
@@ -365,7 +365,7 @@ function GuestSettingsPage() {
       <footer className="mt-10 flex flex-col items-center gap-2 border-t border-fg/[0.06] pt-8 pb-2 text-center">
         <Wordmark markSize={26} />
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted/50">
-          Version 1.2 · Local-first, good-days-first
+          Version 1.2
         </p>
         <div className="flex items-center gap-4 text-[10px] font-semibold text-muted/60">
           <Link to="/privacy" className="transition hover:text-fg">
@@ -378,6 +378,14 @@ function GuestSettingsPage() {
             className="transition hover:text-fg"
           >
             Feedback
+          </a>
+          <a
+            href={REPOSITORY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition hover:text-fg"
+          >
+            Open source
           </a>
         </div>
       </footer>
