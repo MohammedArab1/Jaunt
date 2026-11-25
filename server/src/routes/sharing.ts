@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { Router, type NextFunction, type Request, type Response } from 'express'
-import { rateLimit } from 'express-rate-limit'
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import { pool } from '../db.js'
 import { currentUser, requireAuth } from '../auth.js'
@@ -22,7 +22,7 @@ const inviteLimiter = rateLimit({
   limit: 20,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id ?? req.ip ?? 'unknown',
+  keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req.ip ?? 'unknown'),
   message: { error: 'Too many invitations. Try again later.' },
 })
 

@@ -105,15 +105,28 @@
     - name: Load production overrides when present
       tags: always
       block:
+        # production.yml sits beside the playbook on the machine running
+        # Ansible, not on the managed host.
         - name: Check for production vars
           ansible.builtin.stat:
             path: "{{ playbook_dir }}/vars/production.yml"
+          delegate_to: localhost
+          run_once: true
           register: jaunt_production_vars
 
         - name: Load production vars
           ansible.builtin.include_vars:
             file: "{{ playbook_dir }}/vars/production.yml"
           when: jaunt_production_vars.stat.exists
+
+        - name: Report production override status
+          ansible.builtin.debug:
+            msg: >-
+              {{
+                'Loaded production.yml from ' ~ playbook_dir ~ '/vars.'
+                if jaunt_production_vars.stat.exists
+                else 'No production.yml found at ' ~ playbook_dir ~ '/vars; using defaults.'
+              }}
 
     - name: Read the existing deployment environment
       tags: always
