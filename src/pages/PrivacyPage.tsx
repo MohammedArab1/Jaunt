@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { ArrowLeft, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Coffee, ShieldAlert } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { FEEDBACK_URL } from '@/lib/links'
+import { BUY_ME_A_COFFEE_URL, FEEDBACK_URL } from '@/lib/links'
 import { Wordmark } from '@/components/ui/Logo'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
@@ -157,6 +157,22 @@ export function PrivacyPage() {
               </a>
               .
             </p>
+          </section>
+
+          <section>
+            <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">
+              Support Jaunt
+            </h2>
+            <p className="mt-2">If Jaunt makes your days a little easier, you can buy me a coffee.</p>
+            <a
+              href={BUY_ME_A_COFFEE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary mt-3 h-9 w-fit px-3.5 text-[11px]"
+            >
+              <Coffee className="h-3.5 w-3.5 text-sun" aria-hidden />
+              Buy me a coffee
+            </a>
           </section>
         </div>
 

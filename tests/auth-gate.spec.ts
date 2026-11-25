@@ -28,4 +28,8 @@ test('serves the privacy page without an account', async ({ page }) => {
   await page.goto('/privacy')
   await expect(page.getByRole('heading', { name: 'Your plans are yours.' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'What Jaunt stores' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Buy me a coffee' })).toHaveAttribute(
+    'href',
+    'https://buymeacoffee.com/mohammedarab',
+  )
 })
