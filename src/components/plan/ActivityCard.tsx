@@ -1,4 +1,9 @@
-import { useEffect, useRef } from 'react'
+import {
+  useEffect,
+  useRef,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import type { Activity, Trip } from '@/types'
 import { CalendarRange, Check, GripVertical, MapPin, Paperclip } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
@@ -54,6 +59,21 @@ export function ActivityCard({
   })
 
   const draggedRef = useRef(false)
+
+  const handleCardPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    // Touch should scroll the list; on phones the grip is the drag activator.
+    if (event.pointerType === 'touch') return
+    listeners?.onPointerDown?.(event)
+  }
+
+  const handleGripPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    event.stopPropagation()
+    listeners?.onPointerDown?.(event)
+  }
+
+  const handleCardKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    listeners?.onKeyDown?.(event)
+  }
 
   useEffect(() => {
     if (isDragging) {
@@ -116,7 +136,8 @@ export function ActivityCard({
       </div>
 
       <article
-        {...listeners}
+        onPointerDown={handleCardPointerDown}
+        onKeyDown={handleCardKeyDown}
         className={cn(
           'flex min-w-0 flex-1 items-stretch overflow-hidden rounded-[22px] border bg-fg/[0.035] transition-all duration-200',
           completed ? 'border-fg/[0.06] bg-fg/[0.015]' : 'border-fg/[0.09] hover:bg-fg/[0.055]',
@@ -233,6 +254,7 @@ export function ActivityCard({
               type="button"
               ref={setActivatorNodeRef}
               {...attributes}
+              onPointerDown={handleGripPointerDown}
               onClick={(event) => event.stopPropagation()}
               className="touch-none cursor-grab rounded-lg p-1.5 text-muted/35 outline-none transition hover:text-muted active:cursor-grabbing"
               aria-label={`Reorder ${activity.name}`}

@@ -212,6 +212,76 @@ test('drags a plan to another day', async ({ page }) => {
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
+test('on touch, only the plan grip starts a drag', async ({ page }) => {
+  await onboard(page, 'Touch')
+  const dayOne = localDayKey(0)
+  const dayTwo = localDayKey(1)
+  await createTrip(page, 'Touch trip', dayOne, dayTwo)
+
+  const firstDay = page.locator(`[data-day-date="${dayOne}"]`)
+  const secondDay = page.locator(`[data-day-date="${dayTwo}"]`)
+
+  await firstDay.getByRole('button', { name: /^Add a plan on/ }).click()
+  await page.getByLabel('What is it?').fill('Touch plan')
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(firstDay.getByRole('button', { name: 'View Touch plan' })).toBeVisible()
+  await expect(page.getByText('Trip created. Time to fill the days.')).toBeHidden({ timeout: 6000 })
+
+  const client = await page.context().newCDPSession(page)
+  const touch = async (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number, y?: number) => {
+    await client.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ x: x ?? 0, y: y ?? 0 }],
+    })
+  }
+  const touchDrag = async (startX: number, startY: number, targetX: number, targetY: number) => {
+    await touch('touchStart', startX, startY)
+    await page.waitForTimeout(120)
+    await touch('touchMove', startX + 10, startY + 10)
+    await page.waitForTimeout(120)
+    await touch('touchMove', targetX, targetY)
+    await page.waitForTimeout(120)
+    await touch('touchEnd')
+  }
+
+  await page.evaluate(() => window.scrollTo(0, 400))
+  await firstDay.scrollIntoViewIfNeeded()
+
+  const cardBox = await firstDay.getByRole('button', { name: 'View Touch plan' }).boundingBox()
+  const firstTarget = await secondDay.boundingBox()
+  expect(cardBox).not.toBeNull()
+  expect(firstTarget).not.toBeNull()
+  if (!cardBox || !firstTarget) return
+
+  await touchDrag(
+    cardBox.x + cardBox.width / 2,
+    cardBox.y + cardBox.height / 2,
+    firstTarget.x + firstTarget.width / 2,
+    firstTarget.y + 24,
+  )
+
+  await expect(firstDay.getByRole('button', { name: 'View Touch plan' })).toBeVisible()
+  await expect(secondDay.getByRole('button', { name: 'View Touch plan' })).toHaveCount(0)
+
+  await page.evaluate(() => window.scrollTo(0, 400))
+  await firstDay.scrollIntoViewIfNeeded()
+
+  const gripBox = await page.getByRole('button', { name: 'Reorder Touch plan' }).boundingBox()
+  const secondTarget = await secondDay.boundingBox()
+  expect(gripBox).not.toBeNull()
+  expect(secondTarget).not.toBeNull()
+  if (!gripBox || !secondTarget) return
+
+  await touchDrag(
+    gripBox.x + gripBox.width / 2,
+    gripBox.y + gripBox.height / 2,
+    secondTarget.x + secondTarget.width / 2,
+    secondTarget.y + 24,
+  )
+
+  await expect(secondDay.getByRole('button', { name: 'View Touch plan' })).toBeVisible()
+})
+
 test('stacks the time fields on a phone', async ({ page }) => {
   await onboard(page, 'Clock')
 
