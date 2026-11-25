@@ -25,6 +25,10 @@ interface PlanListProps {
   empty?: ReactNode
   sortable?: boolean
   showWeather?: boolean
+  /** Render sortable items without owning a DndContext. Used by the trip day board. */
+  externalDnd?: boolean
+  /** Namespaces sortable ids for a day when the same activity appears on several days. */
+  instanceDate?: string
 }
 
 export function PlanList({
@@ -34,6 +38,8 @@ export function PlanList({
   empty,
   sortable = true,
   showWeather = false,
+  externalDnd = false,
+  instanceDate,
 }: PlanListProps) {
   const { openDetail } = useActivityViews()
   const { toast } = useToast()
@@ -108,23 +114,40 @@ export function PlanList({
 
   if (activities.length === 0) return <>{empty}</>
 
+  const instanceId = (activity: Activity) =>
+    instanceDate ? `${activity.id}::${instanceDate}` : activity.id
+
+  const renderCard = (activity: Activity) => (
+    <ActivityCard
+      key={activity.id}
+      activity={activity}
+      trip={activity.tripId ? tripsById.get(activity.tripId) : undefined}
+      attachmentCount={attachmentCounts[activity.id] ?? 0}
+      onOpen={() => openDetail(activity.id)}
+      onToggle={(completed) => void toggle(activity, completed)}
+      sortable={sortable}
+      sortableId={externalDnd ? instanceId(activity) : undefined}
+      sortableData={
+        externalDnd && instanceDate
+          ? { type: 'plan', activityId: activity.id, date: instanceDate }
+          : undefined
+      }
+      showWeather={showWeather}
+    />
+  )
+
+  if (externalDnd) {
+    return (
+      <SortableContext items={sorted.map(instanceId)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2.5">{sorted.map(renderCard)}</div>
+      </SortableContext>
+    )
+  }
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void handleDragEnd(event)}>
       <SortableContext items={items.map((activity) => activity.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2.5">
-          {items.map((activity) => (
-            <ActivityCard
-              key={activity.id}
-              activity={activity}
-              trip={activity.tripId ? tripsById.get(activity.tripId) : undefined}
-              attachmentCount={attachmentCounts[activity.id] ?? 0}
-              onOpen={() => openDetail(activity.id)}
-              onToggle={(completed) => void toggle(activity, completed)}
-              sortable={sortable}
-              showWeather={showWeather}
-            />
-          ))}
-        </div>
+        <div className="space-y-2.5">{items.map(renderCard)}</div>
       </SortableContext>
     </DndContext>
   )

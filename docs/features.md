@@ -15,7 +15,7 @@ For accounts, sharing, offline mode, and installation, see [Using Jaunt](using-j
 - **Rich plans** — name, date, start/end time, trip destination, address/place, type, notes, confirmation number, link, and multiple photo/PDF tickets. Plans can use a specific time, a day-part (**Early morning**, **Morning**, **Afternoon**, or **Evening**), or no time.
 - **Time-first ordering** — timed and day-part plans interleave chronologically by default. Drag a plan to create a custom order; a **Custom order** chip appears and **Sort by time** returns to chronological order. Editing a time, day-part, or date automatically returns the affected day to time order.
 - **Cross things off** — tap the circle; completed plans fade and progress updates.
-- **Move things around** — drag the grip handle for a custom order, use **Sort by time** to restore chronological order, or edit a plan’s dates to move it.
+- **Move things around** — drag the grip handle to reorder a day, drag a single-day plan onto another day in the trip view, use **Sort by time** to restore chronological order, or edit a plan’s dates to move it.
 - **Calendar view** — a month grid with color-coded activity dots; tap any day to see and edit its agenda.
 - **Tickets & photos** — attach up to 12 files per plan. Photos are compressed on-device; PDFs are kept as-is and open in an offline-capable in-app viewer. Download them whenever you need.
 - **Public read-only links** — share a trip's itinerary with anyone, no account required. Tickets, confirmations, links, and notes stay private; revoke the link at any time.

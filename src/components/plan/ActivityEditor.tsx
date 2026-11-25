@@ -33,6 +33,7 @@ import { useToast } from '@/context/ToastContext'
 import { Sheet } from '@/components/ui/Sheet'
 import { Field } from '@/components/ui/Field'
 import { DateInput } from '@/components/ui/DateInput'
+import { TimeInput } from '@/components/ui/TimeInput'
 import { AttachmentTile } from '@/components/attachments/AttachmentTile'
 
 interface StagedFile {
@@ -501,30 +502,20 @@ export function ActivityEditor({ activity, defaults, onClose }: ActivityEditorPr
 
           {timing === 'time' ? (
             <div className="mt-2.5">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Start time" htmlFor="activity-start">
-                  <div className="relative">
-                    <Clock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                    <input
-                      id="activity-start"
-                      type="time"
-                      value={startTime}
-                      onChange={(event) => setStartTime(event.target.value)}
-                      className="field pl-10"
-                    />
-                  </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field
+                  label="Start time"
+                  htmlFor="activity-start"
+                  icon={<Clock className="h-3 w-3" />}
+                >
+                  <TimeInput id="activity-start" value={startTime} onChange={setStartTime} />
                 </Field>
-                <Field label="End time" htmlFor="activity-end">
-                  <div className="relative">
-                    <Clock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                    <input
-                      id="activity-end"
-                      type="time"
-                      value={endTime}
-                      onChange={(event) => setEndTime(event.target.value)}
-                      className="field pl-10"
-                    />
-                  </div>
+                <Field
+                  label="End time"
+                  htmlFor="activity-end"
+                  icon={<Clock className="h-3 w-3" />}
+                >
+                  <TimeInput id="activity-end" value={endTime} onChange={setEndTime} />
                 </Field>
               </div>
               <p className="mt-1.5 text-[11px] font-medium text-muted/60">

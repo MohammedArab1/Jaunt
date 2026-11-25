@@ -197,6 +197,63 @@ export async function reorderVisibleActivities(
   emitLocalChange()
 }
 
+/**
+ * Move a single-day activity to another day and insert it at the dropped
+ * position. The target day keeps the custom order instead of immediately
+ * snapping back to start-time order.
+ */
+export async function moveActivityToDay(
+  activityId: string,
+  targetDate: string,
+  targetOrderedIds: string[],
+): Promise<void> {
+  await db.transaction('rw', db.activities, async () => {
+    const activity = await db.activities.get(activityId)
+    if (!activity) return
+    if (activityEndDate(activity) !== activity.date) {
+      throw new Error('Multi-day plans cannot be moved between days.')
+    }
+
+    const now = Date.now()
+    const applyOrder = async () => {
+      const siblings = await db.activities
+        .where('[profileId+date]')
+        .equals([activity.profileId, targetDate])
+        .toArray()
+      const byId = new Map(siblings.map((item) => [item.id, item]))
+      const ordered = targetOrderedIds
+        .map((id) => byId.get(id))
+        .filter((item): item is Activity => Boolean(item))
+      for (const item of siblings) {
+        if (!ordered.some((entry) => entry.id === item.id)) ordered.push(item)
+      }
+      await db.activities.bulkPut(
+        ordered.map((item, index) => ({ ...item, sortOrder: index, dirty: true, updatedAt: now })),
+      )
+    }
+
+    if (activity.date === targetDate) {
+      await applyOrder()
+      return
+    }
+
+    const sourceDate = activity.date
+    const endDate = activity.endDate === activity.date ? targetDate : activity.endDate
+    await db.activities.delete(activityId)
+    await renumberDay(activity.profileId, sourceDate)
+    await db.activities.put({
+      ...activity,
+      date: targetDate,
+      endDate,
+      sortOrder: 0,
+      dirty: true,
+      updatedAt: now,
+    })
+    await applyOrder()
+  })
+  emitLocalChange()
+}
+
 export async function sortDayByTime(profileId: string, date: string): Promise<void> {
   await db.transaction('rw', db.activities, async () => {
     const all = await db.activities.where('profileId').equals(profileId).toArray()

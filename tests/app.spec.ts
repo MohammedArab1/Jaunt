@@ -150,6 +150,74 @@ test('keeps time order unless the day is manually reordered', async ({ page }) =
   await expect(page.getByText('Custom order')).toHaveCount(0)
 })
 
+test('drags a plan to another day', async ({ page }) => {
+  await onboard(page, 'Mover')
+  const dayOne = localDayKey(0)
+  const dayTwo = localDayKey(1)
+  await createTrip(page, 'Moving trip', dayOne, dayTwo)
+
+  const firstDay = page.locator(`[data-day-date="${dayOne}"]`)
+  const secondDay = page.locator(`[data-day-date="${dayTwo}"]`)
+
+  await firstDay.getByRole('button', { name: /^Add a plan on/ }).click()
+  await page.getByLabel('What is it?').fill('Move me')
+  await page.getByRole('button', { name: 'Add plan', exact: true }).click()
+  await expect(firstDay.getByRole('button', { name: 'View Move me' })).toBeVisible()
+  await expect(page.getByText('Trip created. Time to fill the days.')).toBeHidden({ timeout: 6000 })
+
+  await firstDay.scrollIntoViewIfNeeded()
+
+  const handle = page.getByRole('button', { name: 'Reorder Move me' })
+  const handleBox = await handle.boundingBox()
+  const targetBox = await secondDay.boundingBox()
+  expect(handleBox).not.toBeNull()
+  expect(targetBox).not.toBeNull()
+  if (!handleBox || !targetBox) return
+
+  const startX = handleBox.x + handleBox.width / 2
+  const startY = handleBox.y + handleBox.height / 2
+  const targetX = targetBox.x + targetBox.width / 2
+  const targetY = targetBox.y + 24
+
+  const client = await page.context().newCDPSession(page)
+  const touch = async (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number, y?: number) => {
+    await client.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ x: x ?? 0, y: y ?? 0 }],
+    })
+  }
+
+  await touch('touchStart', startX, startY)
+  await page.waitForTimeout(120)
+  await touch('touchMove', startX + 10, startY + 10)
+  await page.waitForTimeout(60)
+  await touch('touchMove', targetX, targetY)
+  await page.waitForTimeout(120)
+  await touch('touchEnd')
+
+  await expect(secondDay.getByRole('button', { name: 'View Move me' })).toBeVisible()
+  await expect(firstDay.getByRole('button', { name: 'View Move me' })).toHaveCount(0)
+})
+
+test('stacks the time fields on a phone', async ({ page }) => {
+  await onboard(page, 'Clock')
+
+  await page.getByLabel('Add a plan', { exact: true }).click()
+  await page.getByRole('button', { name: 'Time', exact: true }).click()
+
+  const start = page.getByLabel('Start time', { exact: true })
+  const end = page.getByLabel('End time', { exact: true })
+  const startBox = await start.boundingBox()
+  const endBox = await end.boundingBox()
+
+  expect(startBox).not.toBeNull()
+  expect(endBox).not.toBeNull()
+  if (!startBox || !endBox) return
+
+  expect(startBox.x).toBeCloseTo(endBox.x, 0)
+  expect(startBox.y + startBox.height).toBeLessThanOrEqual(endBox.y + 1)
+})
+
 test('interleaves early morning and specific-time plans in time order', async ({ page }) => {
   await onboard(page, 'Buckets')
 

@@ -19,6 +19,8 @@ interface ActivityCardProps {
   onOpen: () => void
   onToggle: (completed: boolean) => void
   sortable?: boolean
+  sortableId?: string
+  sortableData?: Record<string, unknown>
   showWeather?: boolean
 }
 
@@ -29,6 +31,8 @@ export function ActivityCard({
   onOpen,
   onToggle,
   sortable = false,
+  sortableId,
+  sortableData,
   showWeather = false,
 }: ActivityCardProps) {
   const meta = activityMeta(activity.type)
@@ -41,7 +45,12 @@ export function ActivityCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: activity.id, disabled: !sortable })
+    isOver,
+  } = useSortable({
+    id: sortableId ?? activity.id,
+    disabled: !sortable,
+    data: sortableData,
+  })
 
   const completed = activity.completed
 
@@ -87,6 +96,7 @@ export function ActivityCard({
           'flex min-w-0 flex-1 items-stretch overflow-hidden rounded-[22px] border bg-fg/[0.035] transition-all duration-200',
           completed ? 'border-fg/[0.06] bg-fg/[0.015]' : 'border-fg/[0.09] hover:bg-fg/[0.055]',
           isDragging && 'border-coral/40 shadow-2xl shadow-black/50',
+          isOver && !isDragging && 'ring-2 ring-coral/25',
         )}
         style={
           completed

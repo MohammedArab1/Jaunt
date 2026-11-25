@@ -14,6 +14,7 @@
 - **Weather needs a connection to refresh.** The last successful response is cached and shown offline with its update time. Public share pages do not show weather; packing lists use weather only for item suggestions.
 - **Weather data comes from Open-Meteo.** Forecasts and climate averages are best-effort, not official alerts or guarantees.
 - **Owners manage the trip shell.** Only the owner can rename/redate a trip, manage members, or delete it; members can edit the itinerary itself.
+- **Cross-day dragging is for single-day plans in the trip view.** Multi-day plans keep their duration and must be moved by editing their dates; the calendar month grid is not a drop target yet.
 - **Theme settings are per browser.** They do not sync between devices or accounts.
 - **Guest data is local to one browser.** Use backup/restore or import into an account to move it.
 - **Signing out clears the offline account cache.** Sync first if changes have not gone up.

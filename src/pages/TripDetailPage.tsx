@@ -1,5 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import {
   ArrowDownWideNarrow,
   ArrowLeft,
@@ -19,9 +32,11 @@ import {
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { db } from '@/db'
 import type { Activity, PackingItem } from '@/types'
+import { activityMeta } from '@/lib/activityMeta'
 import {
   activityEndDate,
   activityForDate,
+  activityScheduleLabel,
   dateRangeLabel,
   eachDayKey,
   formatDay,
@@ -30,8 +45,8 @@ import {
   sortActivities,
   tripCountdownLabel,
 } from '@/lib/dates'
-import { deleteTrip, sortDayByTime } from '@/lib/repo'
-import { hexAlpha, pluralize } from '@/lib/utils'
+import { deleteTrip, moveActivityToDay, reorderVisibleActivities, sortDayByTime } from '@/lib/repo'
+import { cn, hexAlpha, pluralize } from '@/lib/utils'
 import { useToday } from '@/hooks/useToday'
 import { useTripWeather } from '@/hooks/useTripWeather'
 import { useWeatherUnits } from '@/lib/weatherUnits'
@@ -51,6 +66,74 @@ import { TripMembersSheet } from '@/components/trips/TripMembersSheet'
 import { TripShareSheet } from '@/components/trips/TripShareSheet'
 import { TripWeatherSection } from '@/components/weather/TripWeatherSection'
 import { DayWeatherCard } from '@/components/weather/DayWeatherCard'
+
+interface PlanDragData {
+  type: 'plan'
+  activityId: string
+  date: string
+}
+
+interface DayDropData {
+  type: 'day'
+  date: string
+}
+
+interface ActivePlanDrag {
+  activity: Activity
+  date: string
+}
+
+function DayDropZone({ date, children }: { date: string; children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `day:${date}`,
+    data: { type: 'day', date } satisfies DayDropData,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-[28px] transition-colors',
+        isOver && 'bg-coral/[0.035] ring-1 ring-inset ring-coral/20',
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+function PlanDragPreview({ activity, date }: ActivePlanDrag) {
+  const meta = activityMeta(activity.type)
+  const Icon = meta.icon
+  const instance = activityForDate(activity, date)
+
+  return (
+    <div className="pointer-events-none w-[min(360px,calc(100vw-3rem))] rotate-1 rounded-[22px] border border-coral/40 bg-surface p-3.5 shadow-2xl shadow-black/60">
+      <div className="flex items-start gap-3">
+        <span
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fg/[0.06]"
+          style={{ backgroundColor: hexAlpha(meta.color, 0.14), color: meta.color }}
+        >
+          <Icon className="h-[17px] w-[17px]" strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0">
+          <p
+            className="text-[9px] font-extrabold uppercase tracking-[0.17em]"
+            style={{ color: meta.color }}
+          >
+            {meta.label}
+          </p>
+          <p className="mt-0.5 break-words text-sm font-extrabold leading-snug text-fg">
+            {activity.name}
+          </p>
+          <p className="mt-1 text-[10px] font-bold text-muted">
+            {activityScheduleLabel(instance)}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function TripDetailPage() {
   const { tripId } = useParams<{ tripId: string }>()
@@ -93,6 +176,12 @@ export function TripDetailPage() {
   const [membersOpen, setMembersOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
+  const [activeDrag, setActiveDrag] = useState<ActivePlanDrag | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 7 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   const dayGroups = useMemo(() => {
     if (!trip) return []
@@ -165,6 +254,68 @@ export function TripDetailPage() {
   const isAccount = mode === 'account'
   const isOwner = trip.role !== 'member'
   const addDate = today >= trip.startDate && today <= trip.endDate ? today : trip.startDate
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const data = event.active.data.current as PlanDragData | undefined
+    if (!data?.activityId || !data.date) return
+    const activity = activities.find((item) => item.id === data.activityId)
+    if (activity) setActiveDrag({ activity, date: data.date })
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveDrag(null)
+
+    const activeData = event.active.data.current as PlanDragData | undefined
+    if (!activeData?.activityId || !activeData.date || !event.over || event.active.id === event.over.id) {
+      return
+    }
+
+    const overData = event.over.data.current as PlanDragData | DayDropData | undefined
+    const targetDate = overData?.date
+    if (!targetDate) return
+
+    const source = activities.find((activity) => activity.id === activeData.activityId)
+    if (!source) return
+
+    if (activityEndDate(source) !== source.date && targetDate !== activeData.date) {
+      toast('Edit the dates to move a multi-day plan.')
+      return
+    }
+
+    const targetGroup = dayGroups.find((group) => group.date === targetDate)
+    if (!targetGroup) return
+
+    const targetIds = targetGroup.activities.map((activity) => activity.id)
+    const sourceId = source.id
+
+    if (targetDate === activeData.date) {
+      const oldIndex = targetIds.indexOf(sourceId)
+      const overId = overData?.type === 'plan' ? overData.activityId : undefined
+      const newIndex = overId ? targetIds.indexOf(overId) : targetIds.length - 1
+      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return
+
+      try {
+        await reorderVisibleActivities(profile.id, arrayMove(targetIds, oldIndex, newIndex))
+      } catch {
+        toast('Could not reorder those plans.', 'error')
+      }
+      return
+    }
+
+    const overId = overData?.type === 'plan' ? overData.activityId : undefined
+    const filtered = targetIds.filter((id) => id !== sourceId)
+    let insertAt = overId ? filtered.indexOf(overId) : filtered.length
+    if (insertAt < 0) insertAt = filtered.length
+
+    const nextTarget = [...filtered]
+    nextTarget.splice(insertAt, 0, sourceId)
+
+    try {
+      await moveActivityToDay(sourceId, targetDate, nextTarget)
+    } catch {
+      toast('Could not move that plan.', 'error')
+    }
+  }
 
   const sortDay = async (date: string) => {
     try {
@@ -398,94 +549,109 @@ export function TripDetailPage() {
         <p className="text-[10px] font-bold text-muted/50">{pluralize(dayGroups.length, 'day')}</p>
       </div>
 
-      <div className="mt-4 space-y-5">
-        {dayGroups.map(({ date, activities: dayActivities }, index) => {
-          const dayDone = dayActivities.filter((activity) => activity.completed).length
-          const dayTimeOrdered = isTimeOrdered(dayActivities)
-          return (
-            <section key={date}>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-baseline gap-2.5">
-                  <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted/60">
-                    Day {index + 1}
-                  </span>
-                  <h3 className="font-display text-lg font-extrabold tracking-[-0.02em] text-fg">
-                    {formatDay(date, 'EEE, MMM d')}
-                  </h3>
-                  {date === today ? (
-                    <span className="rounded-full bg-coral/15 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.08em] text-coral">
-                      Today
-                    </span>
-                  ) : null}
-                </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={(event) => void handleDragEnd(event)}
+        onDragCancel={() => setActiveDrag(null)}
+      >
+        <div className="mt-4 space-y-5">
+          {dayGroups.map(({ date, activities: dayActivities }, index) => {
+            const dayDone = dayActivities.filter((activity) => activity.completed).length
+            const dayTimeOrdered = isTimeOrdered(dayActivities)
+            return (
+              <section key={date} data-day-date={date}>
+                <DayDropZone date={date}>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-baseline gap-2.5">
+                      <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted/60">
+                        Day {index + 1}
+                      </span>
+                      <h3 className="font-display text-lg font-extrabold tracking-[-0.02em] text-fg">
+                        {formatDay(date, 'EEE, MMM d')}
+                      </h3>
+                      {date === today ? (
+                        <span className="rounded-full bg-coral/15 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.08em] text-coral">
+                          Today
+                        </span>
+                      ) : null}
+                    </div>
 
-                <div className="flex shrink-0 items-center gap-1">
-                  {!dayTimeOrdered ? (
-                    <span className="rounded-full border border-sun/20 bg-sun/[0.08] px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.06em] text-sun">
-                      Custom order
-                    </span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {!dayTimeOrdered ? (
+                        <span className="rounded-full border border-sun/20 bg-sun/[0.08] px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.06em] text-sun">
+                          Custom order
+                        </span>
+                      ) : null}
+                      {dayActivities.length > 0 ? (
+                        <span className="rounded-full border border-fg/[0.08] bg-fg/[0.03] px-2 py-0.5 text-[9px] font-extrabold text-muted">
+                          {dayDone}/{dayActivities.length}
+                        </span>
+                      ) : null}
+                      {dayActivities.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => void sortDay(date)}
+                          className="btn-icon-sm h-8 w-8"
+                          aria-label={`Sort ${formatDay(date, 'MMMM d')} by start time`}
+                          title="Sort by start time"
+                        >
+                          <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => openCreate({ date, tripId: trip.id })}
+                        className="btn-icon-sm h-8 w-8"
+                        aria-label={`Add a plan on ${formatDay(date, 'MMMM d')}`}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {!isPast ? (
+                    <DayWeatherCard
+                      locations={weather.locations}
+                      date={date}
+                      units={weatherUnits}
+                      activities={dayActivities}
+                      destinations={destinations}
+                    />
                   ) : null}
+
                   {dayActivities.length > 0 ? (
-                    <span className="rounded-full border border-fg/[0.08] bg-fg/[0.03] px-2 py-0.5 text-[9px] font-extrabold text-muted">
-                      {dayDone}/{dayActivities.length}
-                    </span>
-                  ) : null}
-                  {dayActivities.length > 1 ? (
+                    <PlanList
+                      profileId={profile.id}
+                      activities={dayActivities}
+                      tripsById={tripsById}
+                      externalDnd
+                      instanceDate={date}
+                    />
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => void sortDay(date)}
-                      className="btn-icon-sm h-8 w-8"
-                      aria-label={`Sort ${formatDay(date, 'MMMM d')} by start time`}
-                      title="Sort by start time"
+                      onClick={() => openCreate({ date, tripId: trip.id })}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-fg/12 p-3.5 text-left transition hover:border-fg/20 hover:bg-fg/[0.03]"
                     >
-                      <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+                      <span className="grid h-7 w-7 place-items-center rounded-full border border-fg/10 bg-fg/[0.03] text-muted">
+                        <Plus className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="flex-1 text-xs font-semibold text-muted">
+                        Nothing planned — add a stop or leave the day open.
+                      </span>
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => openCreate({ date, tripId: trip.id })}
-                    className="btn-icon-sm h-8 w-8"
-                    aria-label={`Add a plan on ${formatDay(date, 'MMMM d')}`}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {!isPast ? (
-                <DayWeatherCard
-                  locations={weather.locations}
-                  date={date}
-                  units={weatherUnits}
-                  activities={dayActivities}
-                  destinations={destinations}
-                />
-              ) : null}
-
-              {dayActivities.length > 0 ? (
-                <PlanList
-                  profileId={profile.id}
-                  activities={dayActivities}
-                  tripsById={tripsById}
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => openCreate({ date, tripId: trip.id })}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-fg/12 p-3.5 text-left transition hover:border-fg/20 hover:bg-fg/[0.03]"
-                >
-                  <span className="grid h-7 w-7 place-items-center rounded-full border border-fg/10 bg-fg/[0.03] text-muted">
-                    <Plus className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="flex-1 text-xs font-semibold text-muted">
-                    Nothing planned — add a stop or leave the day open.
-                  </span>
-                </button>
-              )}
-            </section>
-          )
-        })}
-      </div>
+                  )}
+                </DayDropZone>
+              </section>
+            )
+          })}
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {activeDrag ? <PlanDragPreview {...activeDrag} /> : null}
+        </DragOverlay>
+      </DndContext>
 
       {editOpen ? (
         <TripForm trip={trip} onClose={() => setEditOpen(false)} />
