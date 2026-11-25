@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { Activity, Trip } from '@/types'
 import { CalendarRange, Check, GripVertical, MapPin, Paperclip } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
@@ -52,6 +53,29 @@ export function ActivityCard({
     data: sortableData,
   })
 
+  const draggedRef = useRef(false)
+
+  useEffect(() => {
+    if (isDragging) {
+      draggedRef.current = true
+      return
+    }
+    if (!draggedRef.current) return
+
+    const timer = window.setTimeout(() => {
+      draggedRef.current = false
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [isDragging])
+
+  const open = () => {
+    if (draggedRef.current) {
+      draggedRef.current = false
+      return
+    }
+    onOpen()
+  }
+
   const completed = activity.completed
 
   return (
@@ -92,6 +116,7 @@ export function ActivityCard({
       </div>
 
       <article
+        {...listeners}
         className={cn(
           'flex min-w-0 flex-1 items-stretch overflow-hidden rounded-[22px] border bg-fg/[0.035] transition-all duration-200',
           completed ? 'border-fg/[0.06] bg-fg/[0.015]' : 'border-fg/[0.09] hover:bg-fg/[0.055]',
@@ -109,7 +134,8 @@ export function ActivityCard({
       >
         <button
           type="button"
-          onClick={onOpen}
+          onClick={open}
+          onKeyDown={(event) => event.stopPropagation()}
           className="flex min-w-0 flex-1 items-start gap-3 p-3.5 text-left outline-none sm:gap-3.5"
           aria-label={`View ${activity.name}`}
         >
@@ -188,6 +214,8 @@ export function ActivityCard({
           <button
             type="button"
             onClick={() => onToggle(!completed)}
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
             aria-label={completed ? `Mark ${activity.name} as not done` : `Mark ${activity.name} as done`}
             aria-pressed={completed}
             className={cn(
@@ -205,7 +233,6 @@ export function ActivityCard({
               type="button"
               ref={setActivatorNodeRef}
               {...attributes}
-              {...listeners}
               onClick={(event) => event.stopPropagation()}
               className="touch-none cursor-grab rounded-lg p-1.5 text-muted/35 outline-none transition hover:text-muted active:cursor-grabbing"
               aria-label={`Reorder ${activity.name}`}

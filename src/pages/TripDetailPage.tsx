@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   DndContext,
@@ -108,27 +109,33 @@ function PlanDragPreview({ activity, date }: ActivePlanDrag) {
   const instance = activityForDate(activity, date)
 
   return (
-    <div className="pointer-events-none w-[min(360px,calc(100vw-3rem))] rotate-1 rounded-[22px] border border-coral/40 bg-surface p-3.5 shadow-2xl shadow-black/60">
-      <div className="flex items-start gap-3">
-        <span
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fg/[0.06]"
-          style={{ backgroundColor: hexAlpha(meta.color, 0.14), color: meta.color }}
-        >
-          <Icon className="h-[17px] w-[17px]" strokeWidth={2.2} />
-        </span>
-        <div className="min-w-0">
-          <p
-            className="text-[9px] font-extrabold uppercase tracking-[0.17em]"
-            style={{ color: meta.color }}
+    <div className="pointer-events-none flex gap-2.5 sm:gap-3">
+      <span className="w-[50px] shrink-0 sm:w-[58px]" aria-hidden />
+      <div
+        data-drag-preview
+        className="min-w-0 flex-1 rotate-1 rounded-[22px] border border-coral/40 bg-surface p-3.5 shadow-2xl shadow-black/60"
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fg/[0.06]"
+            style={{ backgroundColor: hexAlpha(meta.color, 0.14), color: meta.color }}
           >
-            {meta.label}
-          </p>
-          <p className="mt-0.5 break-words text-sm font-extrabold leading-snug text-fg">
-            {activity.name}
-          </p>
-          <p className="mt-1 text-[10px] font-bold text-muted">
-            {activityScheduleLabel(instance)}
-          </p>
+            <Icon className="h-[17px] w-[17px]" strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0">
+            <p
+              className="text-[9px] font-extrabold uppercase tracking-[0.17em]"
+              style={{ color: meta.color }}
+            >
+              {meta.label}
+            </p>
+            <p className="mt-0.5 break-words text-sm font-extrabold leading-snug text-fg">
+              {activity.name}
+            </p>
+            <p className="mt-1 text-[10px] font-bold text-muted">
+              {activityScheduleLabel(instance)}
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -648,9 +655,12 @@ export function TripDetailPage() {
             )
           })}
         </div>
-        <DragOverlay dropAnimation={null}>
-          {activeDrag ? <PlanDragPreview {...activeDrag} /> : null}
-        </DragOverlay>
+        {createPortal(
+          <DragOverlay dropAnimation={null}>
+            {activeDrag ? <PlanDragPreview {...activeDrag} /> : null}
+          </DragOverlay>,
+          document.body,
+        )}
       </DndContext>
 
       {editOpen ? (

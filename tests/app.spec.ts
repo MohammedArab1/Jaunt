@@ -165,38 +165,51 @@ test('drags a plan to another day', async ({ page }) => {
   await expect(firstDay.getByRole('button', { name: 'View Move me' })).toBeVisible()
   await expect(page.getByText('Trip created. Time to fill the days.')).toBeHidden({ timeout: 6000 })
 
+  await page.evaluate(() => window.scrollTo(0, 400))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+
   await firstDay.scrollIntoViewIfNeeded()
 
-  const handle = page.getByRole('button', { name: 'Reorder Move me' })
-  const handleBox = await handle.boundingBox()
+  const planButton = firstDay.getByRole('button', { name: 'View Move me' })
+  const planBox = await planButton.boundingBox()
   const targetBox = await secondDay.boundingBox()
-  expect(handleBox).not.toBeNull()
+  expect(planBox).not.toBeNull()
   expect(targetBox).not.toBeNull()
-  if (!handleBox || !targetBox) return
+  if (!planBox || !targetBox) return
 
-  const startX = handleBox.x + handleBox.width / 2
-  const startY = handleBox.y + handleBox.height / 2
+  const startX = planBox.x + planBox.width / 2
+  const startY = planBox.y + planBox.height / 2
   const targetX = targetBox.x + targetBox.width / 2
   const targetY = targetBox.y + 24
 
-  const client = await page.context().newCDPSession(page)
-  const touch = async (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number, y?: number) => {
-    await client.send('Input.dispatchTouchEvent', {
-      type,
-      touchPoints: type === 'touchEnd' ? [] : [{ x: x ?? 0, y: y ?? 0 }],
-    })
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(startX + 10, startY + 10, { steps: 3 })
+  await page.waitForTimeout(120)
+
+  const cardBox = await planButton.evaluate((element) => {
+    const article = element.closest('article')
+    if (!article) return null
+    const rect = article.getBoundingClientRect()
+    return { x: rect.x, y: rect.y }
+  })
+  const preview = page.locator('[data-drag-preview]')
+  await expect(preview).toBeVisible()
+  const previewBox = await preview.boundingBox()
+  expect(cardBox).not.toBeNull()
+  expect(previewBox).not.toBeNull()
+  if (cardBox && previewBox) {
+    expect(Math.abs(previewBox.x - cardBox.x)).toBeLessThan(24)
+    expect(Math.abs(previewBox.y - cardBox.y)).toBeLessThan(24)
   }
 
-  await touch('touchStart', startX, startY)
+  await page.mouse.move(targetX, targetY, { steps: 15 })
   await page.waitForTimeout(120)
-  await touch('touchMove', startX + 10, startY + 10)
-  await page.waitForTimeout(60)
-  await touch('touchMove', targetX, targetY)
-  await page.waitForTimeout(120)
-  await touch('touchEnd')
+  await page.mouse.up()
 
   await expect(secondDay.getByRole('button', { name: 'View Move me' })).toBeVisible()
   await expect(firstDay.getByRole('button', { name: 'View Move me' })).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
 test('stacks the time fields on a phone', async ({ page }) => {
