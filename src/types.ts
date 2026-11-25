@@ -170,6 +170,13 @@ export interface AuthUser {
   email: string
   displayName: string
   color: string
+  hasPassword: boolean
+}
+
+export interface AuthProvider {
+  id: string
+  label: string
+  connected?: boolean
 }
 
 export interface SyncTrip {

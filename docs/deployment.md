@@ -28,6 +28,23 @@ cp ansible/vars/production.example.yml ansible/vars/production.yml
 
 If the server checkout already has a `.env` with the database password, leaving `jaunt_postgres_password` empty adopts that password. If you are moving an existing deployment, copy its `.env` into the new `jaunt_app_dir` (or set `jaunt_postgres_password`) so the app keeps using the same database password. The Compose project name is unchanged, so an existing `jaunt` database volume on the same host is reused.
 
+### Google sign-in (optional)
+
+Set the OAuth client values in `ansible/vars/production.yml` (the file is gitignored and can be ansible-vault encrypted):
+
+```yaml
+jaunt_google_client_id: "1234567890-abc.apps.googleusercontent.com"
+jaunt_google_client_secret: "replace-me"
+```
+
+`jaunt_public_url` defaults to `https://<jaunt_domain>` and is rendered into the API as `PUBLIC_URL`. Register this authorized redirect URI in Google Cloud exactly:
+
+```text
+<jaunt_public_url>/api/auth/oauth/google/callback
+```
+
+Keep the client secret out of `group_vars` and out of the repository. See [Self-hosting](self-hosting.md#google-sign-in-optional) for the Google Cloud setup.
+
 The repository is the source of truth. The deploy refuses to run if your local working tree is dirty or if `HEAD` differs from the deploy branch. Commit and push first:
 
 ```bash

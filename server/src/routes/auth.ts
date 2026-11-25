@@ -25,6 +25,7 @@ import {
   getAcceptedMemberIds,
   getTripParticipantIds,
 } from '../tripAccess.js'
+import { publicProviders } from '../oauth/providers.js'
 
 const router = Router()
 
@@ -59,7 +60,7 @@ const credentialsSchema = z.object({
 })
 
 const passwordChangeSchema = z.object({
-  currentPassword: z.string().min(1, 'Enter your current password.').max(128, 'Password is too long.'),
+  currentPassword: z.string().max(128, 'Password is too long.').optional(),
   newPassword: z
     .string()
     .min(8, 'New password must be at least 8 characters.')
@@ -67,7 +68,10 @@ const passwordChangeSchema = z.object({
 })
 
 const deleteAccountSchema = z.object({
-  password: z.string().min(1, 'Enter your password.').max(128, 'Password is too long.'),
+  confirmation: z
+    .string()
+    .trim()
+    .refine((value) => value === 'Delete', 'Type Delete to confirm.'),
 })
 
 function asyncHandler(
@@ -89,7 +93,7 @@ function passwordFitsBcrypt(password: string): boolean {
 interface UserRow {
   id: string
   email: string
-  password_hash: string
+  password_hash: string | null
   display_name: string
   color: string
 }
@@ -119,7 +123,7 @@ router.post(
       const result = await pool.query<UserRow>(
         `INSERT INTO users (id, email, password_hash, display_name, color)
          VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, email, display_name, color`,
+         RETURNING id, email, password_hash, display_name, color`,
         [userId, email, passwordHash, displayName, color],
       )
 
@@ -155,7 +159,12 @@ router.post(
     )
 
     const row = result.rows[0]
-    if (!row || !passwordFitsBcrypt(password) || !(await verifyPassword(password, row.password_hash))) {
+    if (
+      !row ||
+      !row.password_hash ||
+      !passwordFitsBcrypt(password) ||
+      !(await verifyPassword(password, row.password_hash))
+    ) {
       res.status(401).json({ error: 'Email or password is incorrect.' })
       return
     }
@@ -187,26 +196,11 @@ router.delete(
     }
 
     const userId = currentUser(req).id
-    if (!passwordFitsBcrypt(parsed.data.password)) {
-      res.status(400).json({ error: 'Password is too long.' })
-      return
-    }
 
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
       await acquireSyncLock(client)
-
-      const passwordResult = await client.query<{ password_hash: string }>(
-        'SELECT password_hash FROM users WHERE id = $1',
-        [userId],
-      )
-      const passwordRow = passwordResult.rows[0]
-      if (!passwordRow || !(await verifyPassword(parsed.data.password, passwordRow.password_hash))) {
-        await client.query('ROLLBACK')
-        res.status(400).json({ error: 'Password is incorrect.' })
-        return
-      }
 
       const deletedAt = Date.now()
       const ownedTrips = await client.query<{ id: string }>(
@@ -323,32 +317,48 @@ router.patch(
     }
 
     const { currentPassword, newPassword } = parsed.data
-    if (!passwordFitsBcrypt(currentPassword) || !passwordFitsBcrypt(newPassword)) {
-      res.status(400).json({ error: 'Passwords must be 72 bytes or fewer.' })
+    if (!passwordFitsBcrypt(newPassword)) {
+      res.status(400).json({ error: 'New password must be 72 bytes or fewer.' })
       return
     }
 
     const userId = currentUser(req).id
-    const result = await pool.query<{ password_hash: string }>(
+    const result = await pool.query<{ password_hash: string | null }>(
       'SELECT password_hash FROM users WHERE id = $1',
       [userId],
     )
     const row = result.rows[0]
-    if (!row || !(await verifyPassword(currentPassword, row.password_hash))) {
-      res.status(400).json({ error: 'Current password is incorrect.' })
+    if (!row) {
+      res.status(401).json({ error: 'Please sign in to continue.' })
       return
     }
 
-    if (await verifyPassword(newPassword, row.password_hash)) {
-      res.status(400).json({ error: 'Choose a password that is different from your current one.' })
-      return
+    if (row.password_hash !== null) {
+      if (!currentPassword) {
+        res.status(400).json({ error: 'Enter your current password.' })
+        return
+      }
+      if (!passwordFitsBcrypt(currentPassword)) {
+        res.status(400).json({ error: 'Current password is too long.' })
+        return
+      }
+      if (!(await verifyPassword(currentPassword, row.password_hash))) {
+        res.status(400).json({ error: 'Current password is incorrect.' })
+        return
+      }
+      if (await verifyPassword(newPassword, row.password_hash)) {
+        res.status(400).json({ error: 'Choose a password that is different from your current one.' })
+        return
+      }
     }
 
     const passwordHash = await hashPassword(newPassword)
     await pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [userId, passwordHash])
 
-    // Changing the password signs out every other device. This session stays valid.
-    if (req.sessionTokenHash) {
+    // Changing an existing password signs out every other device. This session
+    // stays valid. Setting a first password on an OIDC-only account should not
+    // disturb other signed-in devices.
+    if (row.password_hash !== null && req.sessionTokenHash) {
       await pool.query(
         'DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2',
         [userId, req.sessionTokenHash],
@@ -358,6 +368,34 @@ router.patch(
     await cleanupExpiredSessions()
     res.setHeader('Cache-Control', 'no-store')
     res.json({ ok: true })
+  }),
+)
+
+router.get(
+  '/providers',
+  asyncHandler(async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({ providers: publicProviders() })
+  }),
+)
+
+router.get(
+  '/identities',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const result = await pool.query<{ provider: string }>(
+      'SELECT provider FROM user_identities WHERE user_id = $1',
+      [currentUser(req).id],
+    )
+    const connected = new Set(result.rows.map((row) => row.provider))
+
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({
+      providers: publicProviders().map((provider) => ({
+        ...provider,
+        connected: connected.has(provider.id),
+      })),
+    })
   }),
 )
 

@@ -3,6 +3,10 @@ function numberFromEnv(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, '')
+}
+
 export const config = {
   port: numberFromEnv(process.env.PORT, 3100),
   isProduction: process.env.NODE_ENV === 'production',
@@ -12,6 +16,14 @@ export const config = {
       ? process.env.NODE_ENV === 'production'
       : process.env.COOKIE_SECURE === 'true',
   bcryptRounds: numberFromEnv(process.env.BCRYPT_ROUNDS, 12),
+  publicUrl: trimTrailingSlash((process.env.PUBLIC_URL ?? '').trim()),
+  oauth: {
+    google: {
+      clientId: (process.env.GOOGLE_CLIENT_ID ?? '').trim(),
+      clientSecret: (process.env.GOOGLE_CLIENT_SECRET ?? '').trim(),
+      issuer: (process.env.GOOGLE_ISSUER ?? '').trim() || 'https://accounts.google.com',
+    },
+  },
   database: process.env.DATABASE_URL
     ? {
         connectionString: process.env.DATABASE_URL,

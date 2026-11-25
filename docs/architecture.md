@@ -21,6 +21,10 @@ Cloudflare terminates TLS and routes the public hostname through a Cloudflare Tu
 
 See [Self-hosting](self-hosting.md) for the Cloudflare Tunnel configuration and [Deployment](deployment.md) for the rolling API replacement.
 
+## Sign-in
+
+Password accounts use bcrypt hashes and the PostgreSQL-backed session cookie. External sign-in uses the OIDC authorization-code flow with PKCE. `oauth_transactions` stores short-lived state, nonce, and verifier rows shared by all API replicas, and `user_identities` maps a provider's stable subject to a user. Google is the first provider; add another in `server/src/oauth/providers.ts` and the frontend will render its button automatically.
+
 ## Sync model
 
 - Local writes mark rows dirty and queue deletions. The client pushes those first, then pulls everything new.

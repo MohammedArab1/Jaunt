@@ -1,4 +1,5 @@
 import type {
+  AuthProvider,
   AuthUser,
   GeocodeResponse,
   PublicTripPayload,
@@ -97,11 +98,15 @@ export const api = {
         body: { email, password },
       }),
     logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
-    deleteAccount: (password: string) =>
+    deleteAccount: (confirmation: string) =>
       request<{ ok: true }>('/api/auth/account', {
         method: 'DELETE',
-        body: { password },
+        body: { confirmation },
       }),
+    providers: () =>
+      request<{ providers: AuthProvider[] }>('/api/auth/providers', { timeoutMs: 4500 }),
+    identities: () =>
+      request<{ providers: AuthProvider[] }>('/api/auth/identities', { timeoutMs: 4500 }),
     updateProfile: (displayName: string, color: string) =>
       request<{ user: AuthUser }>('/api/auth/profile', {
         method: 'PATCH',
@@ -111,6 +116,11 @@ export const api = {
       request<{ ok: true }>('/api/auth/password', {
         method: 'PATCH',
         body: { currentPassword, newPassword },
+      }),
+    setPassword: (newPassword: string) =>
+      request<{ ok: true }>('/api/auth/password', {
+        method: 'PATCH',
+        body: { newPassword },
       }),
   },
 

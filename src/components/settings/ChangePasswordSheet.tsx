@@ -7,7 +7,9 @@ import { Sheet } from '@/components/ui/Sheet'
 import { Field } from '@/components/ui/Field'
 
 interface ChangePasswordSheetProps {
+  mode: 'change' | 'set'
   onClose: () => void
+  onSaved: () => Promise<void> | void
 }
 
 interface PasswordFieldProps {
@@ -59,8 +61,9 @@ function PasswordField({
   )
 }
 
-export function ChangePasswordSheet({ onClose }: ChangePasswordSheetProps) {
+export function ChangePasswordSheet({ mode, onClose, onSaved }: ChangePasswordSheetProps) {
   const { toast } = useToast()
+  const isSet = mode === 'set'
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -70,7 +73,7 @@ export function ChangePasswordSheet({ onClose }: ChangePasswordSheetProps) {
   const submit = async () => {
     setError(null)
 
-    if (!currentPassword) {
+    if (!isSet && !currentPassword) {
       setError('Enter your current password.')
       return
     }
@@ -82,20 +85,33 @@ export function ChangePasswordSheet({ onClose }: ChangePasswordSheetProps) {
       setError('The new passwords do not match.')
       return
     }
-    if (newPassword === currentPassword) {
+    if (!isSet && newPassword === currentPassword) {
       setError('Choose a password that is different from your current one.')
       return
     }
 
     setBusy(true)
     try {
-      await api.auth.changePassword(currentPassword, newPassword)
-      toast('Password changed. Other devices were signed out.', 'success', 5000)
+      if (isSet) await api.auth.setPassword(newPassword)
+      else await api.auth.changePassword(currentPassword, newPassword)
+      toast(
+        isSet
+          ? 'Password set. You can now sign in with email and password.'
+          : 'Password changed. Other devices were signed out.',
+        'success',
+        5000,
+      )
+      try {
+        await onSaved()
+      } catch {
+        // The password was saved; a profile refresh failure should not look
+        // like a failed password change.
+      }
       onClose()
     } catch (cause) {
       setError(
         isNetworkError(cause)
-          ? 'Connect to the internet to change your password.'
+          ? 'Connect to the internet to update your password.'
           : getErrorMessage(cause),
       )
       setBusy(false)
@@ -106,8 +122,12 @@ export function ChangePasswordSheet({ onClose }: ChangePasswordSheetProps) {
     <Sheet
       open
       onOpenChange={(open) => !open && onClose()}
-      title="Change password"
-      description="Use a new password for future sign-ins."
+      title={isSet ? 'Set a password' : 'Change password'}
+      description={
+        isSet
+          ? 'Add a password so you can also sign in with email.'
+          : 'Use a new password for future sign-ins.'
+      }
       footer={
         <div className="grid gap-2">
           <button
@@ -117,7 +137,7 @@ export function ChangePasswordSheet({ onClose }: ChangePasswordSheetProps) {
             disabled={busy}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-            {busy ? 'Changing…' : 'Save new password'}
+            {busy ? 'Saving…' : isSet ? 'Save password' : 'Save new password'}
           </button>
           <button
             type="button"
@@ -138,15 +158,17 @@ export function ChangePasswordSheet({ onClose }: ChangePasswordSheetProps) {
         }}
         className="space-y-4 pb-1"
       >
-        <PasswordField
-          id="current-password"
-          label="Current password"
-          value={currentPassword}
-          onChange={setCurrentPassword}
-          autoComplete="current-password"
-          placeholder="Your current password"
-          autoFocus
-        />
+        {!isSet ? (
+          <PasswordField
+            id="current-password"
+            label="Current password"
+            value={currentPassword}
+            onChange={setCurrentPassword}
+            autoComplete="current-password"
+            placeholder="Your current password"
+            autoFocus
+          />
+        ) : null}
         <PasswordField
           id="new-password"
           label="New password"
@@ -154,6 +176,7 @@ export function ChangePasswordSheet({ onClose }: ChangePasswordSheetProps) {
           onChange={setNewPassword}
           autoComplete="new-password"
           placeholder="At least 8 characters"
+          autoFocus={isSet}
         />
         <PasswordField
           id="confirm-new-password"
@@ -167,7 +190,9 @@ export function ChangePasswordSheet({ onClose }: ChangePasswordSheetProps) {
         <div className="flex items-start gap-2.5 rounded-2xl border border-mint/15 bg-mint/[0.05] px-3.5 py-3">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
           <p className="text-[11px] font-semibold leading-relaxed text-muted">
-            Changing your password signs out every other device. This device stays signed in.
+            {isSet
+              ? 'You will be able to sign in with email and password in addition to Google.'
+              : 'Changing your password signs out every other device. This device stays signed in.'}
           </p>
         </div>
 

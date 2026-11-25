@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import { config } from './config.js'
 import { closeDatabase, pool, prepareDatabase } from './db.js'
 import authRouter from './routes/auth.js'
+import oauthRouter from './routes/oauth.js'
 import syncRouter from './routes/sync.js'
 import attachmentsRouter from './routes/attachments.js'
 import sharingRouter from './routes/sharing.js'
@@ -71,6 +72,7 @@ app.get('/api/health', async (_req, res) => {
 // The attachment upload route needs the raw body, so it must come before express.json().
 app.use('/api/attachments', attachmentsRouter)
 app.use(express.json({ limit: '5mb' }))
+app.use('/api/auth/oauth', oauthRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/sync', syncRouter)
 app.use('/api/public', publicRouter)

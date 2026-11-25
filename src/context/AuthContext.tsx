@@ -24,7 +24,8 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  deleteAccount: (password: string) => Promise<void>
+  deleteAccount: (confirmation: string) => Promise<void>
+  refreshUser: () => Promise<void>
   updateAccount: (displayName: string, color: string) => Promise<void>
   continueOffline: () => void
   exitOffline: () => void
@@ -60,7 +61,13 @@ function readCachedUser(): AuthUser | null {
       typeof parsed.displayName === 'string' &&
       typeof parsed.color === 'string'
     ) {
-      return parsed as AuthUser
+      return {
+        id: parsed.id,
+        email: parsed.email,
+        displayName: parsed.displayName,
+        color: parsed.color,
+        hasPassword: typeof parsed.hasPassword === 'boolean' ? parsed.hasPassword : true,
+      }
     }
     return null
   } catch {
@@ -172,9 +179,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user])
 
   const deleteAccount = useCallback(
-    async (password: string) => {
+    async (confirmation: string) => {
       if (!user) return
-      await api.auth.deleteAccount(password)
+      await api.auth.deleteAccount(confirmation)
       await clearAccountCache(user.id)
       writeCachedUser(null)
       setUser(null)
@@ -183,6 +190,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [user],
   )
+
+  const refreshUser = useCallback(async () => {
+    const response = await api.auth.me()
+    if (!response.user) return
+    await ensureAccountProfile(response.user)
+    setUser(response.user)
+    writeCachedUser(response.user)
+    setGuestMode(false)
+    setMode('account')
+    setOffline(false)
+  }, [])
 
   const updateAccount = useCallback(
     async (displayName: string, color: string) => {
@@ -214,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       deleteAccount,
+      refreshUser,
       updateAccount,
       continueOffline,
       exitOffline,
@@ -227,6 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       deleteAccount,
+      refreshUser,
       updateAccount,
       continueOffline,
       exitOffline,

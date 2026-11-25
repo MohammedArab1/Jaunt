@@ -16,3 +16,11 @@ jaunt_postgres_password: ""
 # jaunt_session_days: 180
 # jaunt_web_port: 8080
 # jaunt_api_replicas: 3
+
+# Optional Google sign-in (OpenID Connect). Create a Web application OAuth
+# client and register:
+#   <PUBLIC_URL>/api/auth/oauth/google/callback
+# Keep the secret here, not in group_vars.
+# jaunt_google_client_id: "1234567890-abc.apps.googleusercontent.com"
+# jaunt_google_client_secret: "replace-me"
+# jaunt_public_url: https://jaunt.example.com

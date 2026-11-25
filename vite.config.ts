@@ -54,6 +54,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,woff2,webmanifest,wasm}'],
         globIgnores: ['og-image.png'],
         navigateFallback: 'index.html',
+        // OAuth starts and callbacks are real navigations to the API. Without
+        // this, the service worker would answer them with the app shell.
+        navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
       },

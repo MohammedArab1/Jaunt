@@ -4,11 +4,43 @@ CREATE SEQUENCE IF NOT EXISTS sync_revision_seq;
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY,
   email text NOT NULL UNIQUE,
-  password_hash text NOT NULL,
+  password_hash text,
   display_name text NOT NULL,
   color text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Existing databases created before external sign-in required a password.
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+
+-- External OIDC identities. The provider subject is the stable identifier;
+-- email is informational and can change at the provider.
+CREATE TABLE IF NOT EXISTS user_identities (
+  provider text NOT NULL,
+  subject text NOT NULL,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (provider, subject),
+  UNIQUE (user_id, provider)
+);
+CREATE INDEX IF NOT EXISTS user_identities_user_id_idx ON user_identities(user_id);
+
+-- Short-lived OAuth transactions for state, nonce, and PKCE verification.
+CREATE TABLE IF NOT EXISTS oauth_transactions (
+  state text PRIMARY KEY,
+  provider text NOT NULL,
+  mode text NOT NULL CHECK (mode IN ('login', 'link')),
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  nonce text NOT NULL,
+  code_verifier text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT oauth_transactions_mode_user_check CHECK (
+    (mode = 'link' AND user_id IS NOT NULL) OR (mode = 'login' AND user_id IS NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS oauth_transactions_expires_at_idx ON oauth_transactions(expires_at);
 
 CREATE TABLE IF NOT EXISTS sessions (
   id uuid PRIMARY KEY,

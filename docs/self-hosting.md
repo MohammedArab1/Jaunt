@@ -16,6 +16,8 @@ Edit `.env`:
 | --- | --- |
 | `POSTGRES_PASSWORD` | **Required.** Long random password for PostgreSQL. |
 | `API_REPLICAS` | Number of API containers behind nginx (default `3`). |
+| `PUBLIC_URL` | Public origin used for OAuth redirects (for example `https://jaunt.example.com`). Required only for Google sign-in. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional Google sign-in credentials. Leave blank to disable Google. |
 | `WEB_PORT` | Public port for the web app (default `8080`). |
 | `WEB_BIND` | Interface for the web port (default `0.0.0.0`; use `127.0.0.1` behind a Cloudflare Tunnel or another local proxy). |
 | `DB_PORT` | Local-only host port for PostgreSQL development access (default `55432`). |
@@ -55,12 +57,32 @@ ingress:
 
 Run `cloudflared tunnel run <TUNNEL_NAME>`, or manage the tunnel from the Cloudflare dashboard. The app and API are intentionally same-origin; keep both under the same hostname. nginx restores the real client IP from Cloudflare's `CF-Connecting-IP` header for loopback and private Docker/LAN tunnel networks; keep the web port bound to `127.0.0.1`, and adjust `set_real_ip_from` in `deploy/nginx.conf` if `cloudflared` runs elsewhere.
 
+## Google sign-in (optional)
+
+Jaunt uses the OpenID Connect authorization-code flow with PKCE. Google is the first supported provider; another OIDC provider can be added in `server/src/oauth/providers.ts` and the frontend will render its button automatically.
+
+1. Create a Google Cloud project and complete the **Google Auth Platform** branding screen.
+2. Create an OAuth client of type **Web application**.
+3. Add this authorized redirect URI exactly:
+   - Docker Compose: `http://localhost:8080/api/auth/oauth/google/callback`
+   - Vite dev: `http://localhost:5173/api/auth/oauth/google/callback`
+   - Production: `<PUBLIC_URL>/api/auth/oauth/google/callback`
+4. Set `PUBLIC_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`.
+5. Restart the stack.
+
+Use the `openid`, `email`, and `profile` scopes. While the Google app is in Testing, add your account under test users; publish the app when you want anyone to sign in. Existing accounts are not linked automatically: sign in with the method already on that account, then connect Google from **Settings → Sign-in & security**.
+
+`PUBLIC_URL` must be the public origin the browser uses, including `https://` in production. The redirect URI must match the value registered in Google Cloud exactly.
+
 ## Environment variables
 
 | Variable | Service | Description |
 | --- | --- | --- |
 | `POSTGRES_PASSWORD` | db, api | Required database password. |
 | `API_REPLICAS` | api | Number of API containers behind nginx (default `3`). |
+| `PUBLIC_URL` | api | Public origin used for OAuth redirects. |
+| `GOOGLE_CLIENT_ID` | api | Optional Google OIDC client ID. |
+| `GOOGLE_CLIENT_SECRET` | api | Optional Google OIDC client secret. |
 | `WEB_PORT` | web | Public host port (default `8080`). |
 | `WEB_BIND` | web | Interface for the web port (default `0.0.0.0`; use `127.0.0.1` behind a tunnel or proxy). |
 | `DB_PORT` | db | Local-only host port mapped for development (default `55432`). |

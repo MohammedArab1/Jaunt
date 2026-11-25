@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   ArrowLeft,
   Cloud,
@@ -6,15 +6,19 @@ import {
   EyeOff,
   Loader2,
   LockKeyhole,
+  LogIn,
   Sparkles,
   WifiOff,
 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { isNetworkError } from '@/lib/api'
+import { api, isNetworkError } from '@/lib/api'
+import { oauthStartUrl } from '@/lib/oauth'
 import { FEEDBACK_URL, REPOSITORY_URL } from '@/lib/links'
 import { getErrorMessage } from '@/lib/utils'
+import type { AuthProvider } from '@/types'
 import { Wordmark } from '@/components/ui/Logo'
+import { GoogleMark } from '@/components/ui/GoogleMark'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 const features = [
@@ -41,15 +45,52 @@ const features = [
 export function AuthScreen() {
   const { mode, login, register, continueOffline } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [formMode, setFormMode] = useState<'login' | 'register'>('register')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [providers, setProviders] = useState<AuthProvider[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const isRegister = formMode === 'register'
   const isOfflineGuest = mode === 'guest'
+
+  useEffect(() => {
+    let cancelled = false
+    void api.auth
+      .providers()
+      .then((response) => {
+        if (!cancelled) setProviders(response.providers)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const code = searchParams.get('oauth')
+    if (!code) return
+
+    const providerId = searchParams.get('provider')
+    const providerName = providerId === 'google' ? 'Google' : 'that provider'
+    const messages: Record<string, string> = {
+      'link-required': `An account with that email already exists. Sign in to it first, then connect ${providerName} from Settings.`,
+      failed: `${providerName} sign-in could not be completed. Try again.`,
+      expired: 'That sign-in attempt expired. Try again.',
+      unavailable: 'That sign-in provider is not available.',
+      unverified: 'That account did not report a verified email address.',
+      'sign-in-required': 'Sign in to connect an account.',
+    }
+    setError(messages[code] ?? 'Sign-in could not be completed. Try again.')
+
+    const next = new URLSearchParams(searchParams)
+    next.delete('oauth')
+    next.delete('provider')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const switchMode = (next: 'login' | 'register') => {
     setFormMode(next)
@@ -170,9 +211,44 @@ export function AuthScreen() {
               </h2>
               <p className="mt-2 text-sm font-medium leading-relaxed text-muted">
                 {isRegister
-                  ? 'Just an email and a password. Free to use.'
+                  ? 'Use Google or an email and password. Free to use.'
                   : 'Pick up exactly where you left off.'}
               </p>
+
+              {providers.length > 0 ? (
+                <div className="mt-5 space-y-3">
+                  {providers.map((provider) => (
+                    <a
+                      key={provider.id}
+                      href={oauthStartUrl(provider.id)}
+                      className="btn btn-secondary w-full"
+                    >
+                      {provider.id === 'google' ? (
+                        <GoogleMark className="h-4 w-4" />
+                      ) : (
+                        <LogIn className="h-4 w-4" />
+                      )}
+                      Continue with {provider.label}
+                    </a>
+                  ))}
+                  <div className="flex items-center gap-3 pt-1">
+                    <span className="h-px flex-1 bg-fg/[0.08]" />
+                    <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-muted/50">
+                      or use email
+                    </span>
+                    <span className="h-px flex-1 bg-fg/[0.08]" />
+                  </div>
+                </div>
+              ) : null}
+
+              {error ? (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-xl border border-punch/20 bg-punch/10 px-3 py-2.5 text-xs font-bold leading-relaxed text-punch"
+                >
+                  {error}
+                </p>
+              ) : null}
 
               <form onSubmit={(event) => void submit(event)} className="mt-5 space-y-3.5 sm:space-y-4">
                 <div>
@@ -223,15 +299,6 @@ export function AuthScreen() {
                     </p>
                   ) : null}
                 </div>
-
-                {error ? (
-                  <p
-                    role="alert"
-                    className="rounded-xl border border-punch/20 bg-punch/10 px-3 py-2.5 text-xs font-bold leading-relaxed text-punch"
-                  >
-                    {error}
-                  </p>
-                ) : null}
 
                 <button type="submit" className="btn btn-primary w-full" disabled={busy}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

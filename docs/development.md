@@ -27,6 +27,8 @@ npm run dev
 
 Open `http://localhost:5173`. Vite proxies `/api` to `http://127.0.0.1:3100`. For plain-HTTP localhost testing, set `COOKIE_SECURE=false` in `.env` if your browser does not accept Secure cookies over localhost.
 
+For local Google sign-in, set `PUBLIC_URL=http://localhost:5173` in `.env` and register `http://localhost:5173/api/auth/oauth/google/callback` in Google Cloud. The Vite proxy forwards the callback to the API. If you are testing the Docker Compose build instead, use `http://localhost:8080` and register that callback.
+
 You can develop offline/guest mode without the API running, but account sign-in and sync need it.
 
 ## Other commands
@@ -63,6 +65,8 @@ E2E_BASE_URL=http://localhost:8080 npm run test:account
 
 If you use a non-default port, set `E2E_BASE_URL` accordingly. Covers: registration, cross-device sync, ticket file upload/download, PDF viewer rendering, completion state, offline queued edits, packing-list sync, per-traveler read-only shared lists, service-worker offline reload, importing a guest profile into an account, inviting another account into a trip, creating/revoking a read-only public link, and changing a password with other sessions signed out.
 
+Google sign-in is not covered by the automated suite because it needs a real OAuth client. Test it manually with a Google test user after configuring `PUBLIC_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`.
+
 Type-checking is part of `npm run build`; run `npm run typecheck` for the client and `cd server && npm run typecheck` for the API.
 
 ## Project structure
@@ -78,6 +82,8 @@ src/                    React app
   types.ts              shared client/sync types
 server/                 Node + Express API
   src/auth.ts           sessions, password hashing, auth middleware
+  src/oauth/            OIDC provider registry and account identity linking
+  src/routes/oauth.ts   OIDC start/callback routes
   src/routes/           auth, sync, attachments, sharing, public share links, city search, weather
   src/weather.ts        Open-Meteo forecast, archive, and climate-average service
   src/schema.ts         PostgreSQL schema + startup migrations
@@ -105,6 +111,7 @@ tests/account/          full-stack account Playwright tests
 - Theme tokens + `theme-init.js` for instant light/dark/accent loading
 - Node 24 + Express 5 + `pg`
 - PostgreSQL 17
+- `openid-client` for OIDC sign-in
 - Cloudflare Tunnel for public HTTPS ingress
 - bcryptjs, HTTP-only session cookies
 - vite-plugin-pwa / Workbox

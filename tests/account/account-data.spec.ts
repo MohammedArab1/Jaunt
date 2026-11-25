@@ -54,7 +54,7 @@ test('deletes the account and invalidates the login', async ({ page }) => {
   await page.getByRole('button', { name: 'Delete account' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('heading', { name: 'Delete your account?' })).toBeVisible()
-  await dialog.getByLabel('Password').fill(password)
+  await dialog.getByLabel('Type Delete to confirm').fill('Delete')
   await dialog.getByRole('button', { name: 'Delete account' }).click()
 
   await expect(page.getByRole('heading', { name: 'Create your account.' })).toBeVisible()

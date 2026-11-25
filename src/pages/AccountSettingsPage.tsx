@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { formatDistanceToNowStrict } from 'date-fns'
 import {
   AlertTriangle,
+  Check,
   ChevronRight,
   Cloud,
   CloudOff,
   Download,
   Import as ImportIcon,
   KeyRound,
+  Link2,
   Loader2,
   LogOut,
   Pencil,
@@ -16,20 +18,23 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { db } from '@/db'
-import type { Profile } from '@/types'
+import type { AuthProvider, Profile } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import { useProfile } from '@/context/ProfileContext'
 import { useSync } from '@/context/SyncContext'
 import { useToast } from '@/context/ToastContext'
+import { api } from '@/lib/api'
 import { downloadAccountExport } from '@/lib/backup'
 import { importGuestProfileIntoAccount } from '@/lib/importGuest'
 import { FEEDBACK_URL, REPOSITORY_URL } from '@/lib/links'
+import { oauthStartUrl } from '@/lib/oauth'
 import { getErrorMessage, pluralize } from '@/lib/utils'
 import { Page } from '@/components/ui/Page'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Avatar } from '@/components/ui/Avatar'
+import { GoogleMark } from '@/components/ui/GoogleMark'
 import { Wordmark } from '@/components/ui/Logo'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Field } from '@/components/ui/Field'
@@ -45,19 +50,60 @@ interface GuestStats {
 }
 
 export function AccountSettingsPage() {
-  const { user, logout, deleteAccount, updateAccount } = useAuth()
+  const { user, logout, deleteAccount, updateAccount, refreshUser } = useAuth()
   const { guestProfiles } = useProfile()
   const { status, error, lastSyncedAt, syncNow } = useSync()
   const { toast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
   const userId = user?.id ?? ''
 
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
+  const [providers, setProviders] = useState<AuthProvider[]>([])
   const [importTarget, setImportTarget] = useState<Profile | null>(null)
   const [exportBusy, setExportBusy] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    void api.auth
+      .identities()
+      .then((response) => {
+        if (!cancelled) setProviders(response.providers)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+
+  useEffect(() => {
+    const code = searchParams.get('oauth')
+    if (!code) return
+
+    const providerId = searchParams.get('provider')
+    const provider = providers.find((item) => item.id === providerId)
+    const label = provider?.label ?? (providerId === 'google' ? 'Google' : 'Provider')
+    const messages: Record<string, string> = {
+      connected: `${label} connected.`,
+      'already-connected': `${label} is already connected to this account.`,
+      'already-linked': `That ${label} account is already connected to another Jaunt account.`,
+      'sign-in-required': 'Sign in again to connect an account.',
+      unavailable: 'That sign-in provider is not available.',
+      failed: `${label} sign-in could not be completed. Try again.`,
+      unverified: 'That account did not report a verified email address.',
+      expired: 'That sign-in attempt expired. Try again.',
+    }
+    const success = code === 'connected' || code === 'already-connected'
+    toast(messages[code] ?? 'Sign-in could not be completed. Try again.', success ? 'success' : 'error', 6000)
+
+    const next = new URLSearchParams(searchParams)
+    next.delete('oauth')
+    next.delete('provider')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams, providers, toast])
 
   const tripCount = useLiveQuery(
     () => (userId ? db.trips.where('profileId').equals(userId).count() : Promise.resolve(0)),
@@ -177,14 +223,14 @@ export function AccountSettingsPage() {
       <section className="mt-8">
         <div className="mb-3">
           <h2 className="font-display text-xl font-extrabold tracking-[-0.025em] text-fg">
-            Password
+            Sign-in & security
           </h2>
           <p className="mt-1 text-xs font-medium text-muted">
-            Change the password used to sign in to this account.
+            Choose how you sign in to this account.
           </p>
         </div>
 
-        <div className="surface overflow-hidden">
+        <div className="surface divide-y divide-fg/[0.06] overflow-hidden">
           <button
             type="button"
             onClick={() => setPasswordOpen(true)}
@@ -194,13 +240,61 @@ export function AccountSettingsPage() {
               <KeyRound className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-extrabold text-fg">Change password</span>
+              <span className="block text-sm font-extrabold text-fg">
+                {user.hasPassword ? 'Change password' : 'Set password'}
+              </span>
               <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
-                Other devices will be signed out. This device stays signed in.
+                {user.hasPassword
+                  ? 'Other devices will be signed out. This device stays signed in.'
+                  : 'Add a password so you can also sign in with email.'}
               </span>
             </span>
             <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
           </button>
+
+          {providers.map((provider) =>
+            provider.connected ? (
+              <div key={provider.id} className="flex w-full items-center gap-3.5 p-4">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04]">
+                  {provider.id === 'google' ? (
+                    <GoogleMark className="h-4 w-4" />
+                  ) : (
+                    <Link2 className="h-4 w-4 text-muted" />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-extrabold text-fg">{provider.label}</span>
+                  <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
+                    Connected to this account.
+                  </span>
+                </span>
+                <Check className="h-4 w-4 shrink-0 text-mint" />
+              </div>
+            ) : (
+              <a
+                key={provider.id}
+                href={oauthStartUrl(provider.id, 'link')}
+                className="flex w-full items-center gap-3.5 p-4 text-left transition hover:bg-fg/[0.03]"
+              >
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-fg/[0.08] bg-fg/[0.04]">
+                  {provider.id === 'google' ? (
+                    <GoogleMark className="h-4 w-4" />
+                  ) : (
+                    <Link2 className="h-4 w-4 text-muted" />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-extrabold text-fg">
+                    Connect {provider.label}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] font-medium leading-relaxed text-muted">
+                    Use {provider.label} to sign in to this account.
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+              </a>
+            ),
+          )}
         </div>
       </section>
 
@@ -432,38 +526,44 @@ export function AccountSettingsPage() {
         open={deleteOpen}
         onOpenChange={(open) => {
           setDeleteOpen(open)
-          if (!open) setDeletePassword('')
+          if (!open) setDeleteConfirmation('')
         }}
         title="Delete your account?"
         description="This permanently deletes your account, trips, plans, packing lists, and ticket files from the server and this device."
         confirmLabel="Delete account"
         destructive
         onConfirm={async () => {
-          if (!deletePassword) throw new Error('Enter your password.')
-          await deleteAccount(deletePassword)
+          if (deleteConfirmation.trim() !== 'Delete') throw new Error('Type Delete to confirm.')
+          await deleteAccount(deleteConfirmation.trim())
           toast('Your account was deleted.', 'success', 5000)
         }}
       >
         <div className="space-y-3">
           <p className="rounded-2xl border border-punch/15 bg-punch/[0.05] p-4 text-sm font-semibold leading-relaxed text-muted">
-            This cannot be undone. Download your data first if you want a copy.
+            This cannot be undone. Download your data first if you want a copy. Type{' '}
+            <span className="font-extrabold text-fg">Delete</span> to confirm.
           </p>
-          <Field label="Password" htmlFor="delete-account-password">
+          <Field label="Type Delete to confirm" htmlFor="delete-account-confirmation">
             <input
-              id="delete-account-password"
-              type="password"
-              value={deletePassword}
-              onChange={(event) => setDeletePassword(event.target.value)}
-              autoComplete="current-password"
+              id="delete-account-confirmation"
+              type="text"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
               className="field"
-              placeholder="Your password"
+              placeholder="Delete"
             />
           </Field>
         </div>
       </ConfirmDialog>
 
       {passwordOpen ? (
-        <ChangePasswordSheet onClose={() => setPasswordOpen(false)} />
+        <ChangePasswordSheet
+          mode={user.hasPassword ? 'change' : 'set'}
+          onClose={() => setPasswordOpen(false)}
+          onSaved={refreshUser}
+        />
       ) : null}
 
       {editOpen ? (

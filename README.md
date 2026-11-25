@@ -4,11 +4,12 @@
 
 Jaunt is a self-hosted, installable day and trip planner. It opens on today, keeps tickets attached to the plans that need them, and lets you cross things off as the day unfolds.
 
-It works two ways: signed in, with trips and plans syncing across devices through a small API and PostgreSQL, or entirely offline as a guest with data stored only in the browser.
+It works two ways: signed in with Google or an email and password, with trips and plans syncing across devices through a small API and PostgreSQL, or entirely offline as a guest with data stored only in the browser.
 
 ## Highlights
 
 - **Today, automatically** — the dashboard opens on the current day with an “up next” card, countdown, progress, and every active trip.
+- **Google sign-in** — sign in with Google, or use an email and password and connect Google later from Settings.
 - **Trips and plans** — multi-day trips, multi-city destinations, day-part or exact times, drag-to-reorder, and a calendar view.
 - **Offline-first** — plans and edits are saved locally in IndexedDB and sync when you reconnect.
 - **Tickets and packing lists** — attach photos and PDFs to plans, and keep a personal packing list for each traveler.

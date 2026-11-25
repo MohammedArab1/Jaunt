@@ -3,7 +3,8 @@
 [← Back to README](../README.md)
 
 - **Last-sync-wins conflicts.** There is no field-level merge for simultaneous edits. It is built for personal use across your own devices and small shared trips.
-- **No email verification or password reset.** Registration is plain email + password; there is no SMTP dependency.
+- **Email/password accounts have no email verification or password reset.** Google sign-in uses Google's verified email. Password registration is plain email + password with no SMTP dependency.
+- **One identity per provider; no disconnect UI yet.** An account can connect one Google identity. Removing that connection from Settings is not available yet.
 - **Trip invitations are in-app only.** No email is sent; the invited person must already have an account and open their Trips page.
 - **Public links are unlisted, not password-protected.** Anyone with the URL can view the itinerary. Revoke the link when you no longer want it shared.
 - **Live city suggestions need a connection.** The destination field always accepts typed cities, but suggestions are fetched through the server from [Open-Meteo](https://open-meteo.com/) and are unavailable offline.

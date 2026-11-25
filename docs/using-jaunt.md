@@ -4,7 +4,13 @@
 
 ## Accounts
 
-Registration is deliberately plain: **email + password**. There is no email verification and no password-reset email flow because Jaunt does not assume you have SMTP configured.
+You can create an account with Google or with an email and password. Password accounts have no email verification and no password-reset email flow because Jaunt does not assume you have SMTP configured.
+
+### Signing in with Google
+
+Choose **Continue with Google** on the sign-in screen. A new Jaunt account is created the first time. If an account already exists for that email, Jaunt does not link it automatically: sign in with the method already on that account, then connect Google from **Settings → Sign-in & security**.
+
+Google-only accounts can add a password in Settings so they can also sign in with email or keep a fallback.
 
 ### Shared trips
 
@@ -26,7 +32,8 @@ For privacy, public pages deliberately **do not** include trip/plan notes, confi
 ## Security
 
 - Passwords are hashed with bcrypt (cost 12 by default).
-- Passwords can be changed in **Settings → Password**. The change requires the current password and signs out every other session; the current device stays signed in.
+- Passwords can be changed in **Settings → Sign-in & security**. The change requires the current password and signs out every other session; the current device stays signed in.
+- Google-only accounts can set a password from **Settings → Sign-in & security**.
 - Sessions are random 32-byte tokens stored hashed in PostgreSQL and sent as `HttpOnly`, `SameSite=Lax` cookies.
 - Sessions last 90 days by default and expired sessions are cleaned up.
 - Login and registration are rate limited.
@@ -36,13 +43,15 @@ For privacy, public pages deliberately **do not** include trip/plan notes, confi
 - Activity links are restricted to `http` and `https` URLs before they are stored or rendered.
 - Attachment downloads force non-image/non-PDF content types to download as octet-stream, so uploaded files cannot execute as app-origin HTML.
 
-Change your password any time from **Settings → Password**. Because there is no reset email, **store your password safely**. If you lose it, an administrator with database access can help; there is no self-service recovery.
+Change or set your password from **Settings → Sign-in & security**. Because there is no reset email, **store your password safely**. If you lose it, an administrator with database access can help; there is no self-service recovery. Google-only accounts can still sign in with Google.
 
 Account display name and color start from the email and can be changed in **Settings → Edit account profile**.
 
 ## Deleting an account
 
-You can delete your own account from **Settings → Your data → Delete account**. Jaunt asks for your current password, then permanently removes the account, trips, plans, packing lists, and ticket files from the server and this device. The action cannot be undone, so use **Download my data** first if you want a copy.
+You can delete your own account from **Settings → Your data → Delete account**. Type **Delete** to confirm. This permanently removes the account, trips, plans, packing lists, and ticket files from the server and this device. The action cannot be undone, so use **Download my data** first if you want a copy.
+
+The confirmation is a typed **Delete**, not your password, so only do this on a device you trust.
 
 Deleting your account also removes you from shared trips. Trips you own are removed from the other members' devices on their next sync.
 

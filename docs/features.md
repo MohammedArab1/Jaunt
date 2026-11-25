@@ -5,7 +5,7 @@
 For accounts, sharing, offline mode, and installation, see [Using Jaunt](using-jaunt.md).
 
 - **Today, automatically** — the dashboard opens on the current day with an “up next” card, countdown, progress, every plan, and every trip that is active today.
-- **Accounts** — plain email + password registration and sign-in. Sessions are HTTP-only cookies; passwords are hashed.
+- **Accounts** — sign in with Google (OpenID Connect) or plain email + password. Sessions are HTTP-only cookies; passwords are hashed.
 - **Cross-device sync** — account data is stored in PostgreSQL per user and pulled into each device. Works alongside an offline-first browser cache.
 - **Offline-first** — fresh plans and edits are saved immediately in IndexedDB even when the network is down. They sync automatically when you reconnect.
 - **Multi-day trips** — name a trip, pick the dates, choose a color and emoji, then build it out day by day. Multi-day plans show their start time on the first day, their end time on the last day, and appear as any-time in between. Day-part timing applies only to the first instance.

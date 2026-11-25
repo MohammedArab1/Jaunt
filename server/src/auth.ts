@@ -9,6 +9,7 @@ export interface AuthUser {
   email: string
   displayName: string
   color: string
+  hasPassword: boolean
 }
 
 declare global {
@@ -25,6 +26,7 @@ interface SessionRow {
   email: string
   display_name: string
   color: string
+  password_hash: string | null
 }
 
 const NAME_COLORS = ['#FF6B4A', '#FFD166', '#4ADE97', '#5EC8FF', '#A98BFF', '#FF5C8A']
@@ -81,6 +83,7 @@ export function publicUser(row: SessionRow): AuthUser {
     email: row.email,
     displayName: row.display_name,
     color: row.color,
+    hasPassword: row.password_hash !== null,
   }
 }
 
@@ -120,7 +123,7 @@ export async function getSessionUser(req: Request): Promise<AuthUser | null> {
 
   const hash = tokenHash(token)
   const result = await pool.query<SessionRow>(
-    `SELECT u.id, u.email, u.display_name, u.color
+    `SELECT u.id, u.email, u.display_name, u.color, u.password_hash
      FROM sessions s
      JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > now()`,
