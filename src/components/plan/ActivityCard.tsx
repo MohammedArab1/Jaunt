@@ -256,7 +256,7 @@ export function ActivityCard({
               {...attributes}
               onPointerDown={handleGripPointerDown}
               onClick={(event) => event.stopPropagation()}
-              className="touch-none cursor-grab rounded-lg p-1.5 text-muted/35 outline-none transition hover:text-muted active:cursor-grabbing"
+              className="touch-none cursor-grab select-none rounded-lg p-1.5 text-muted/35 outline-none transition hover:text-muted active:cursor-grabbing"
               aria-label={`Reorder ${activity.name}`}
             >
               <GripVertical className="h-4 w-4" />

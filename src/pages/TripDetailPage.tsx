@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -189,6 +189,24 @@ export function TripDetailPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 7 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+
+  useEffect(() => {
+    if (!activeDrag) return
+
+    const body = document.body
+    body.classList.add('is-dragging-plan')
+    const preventSelection = (event: Event) => event.preventDefault()
+    const preventContextMenu = (event: Event) => event.preventDefault()
+    document.addEventListener('selectstart', preventSelection)
+    document.addEventListener('contextmenu', preventContextMenu)
+
+    return () => {
+      body.classList.remove('is-dragging-plan')
+      document.removeEventListener('selectstart', preventSelection)
+      document.removeEventListener('contextmenu', preventContextMenu)
+      window.getSelection()?.removeAllRanges()
+    }
+  }, [activeDrag])
 
   const dayGroups = useMemo(() => {
     if (!trip) return []

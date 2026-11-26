@@ -234,14 +234,30 @@ test('on touch, only the plan grip starts a drag', async ({ page }) => {
       touchPoints: type === 'touchEnd' ? [] : [{ x: x ?? 0, y: y ?? 0 }],
     })
   }
-  const touchDrag = async (startX: number, startY: number, targetX: number, targetY: number) => {
+  const touchDrag = async (
+    startX: number,
+    startY: number,
+    targetX: number,
+    targetY: number,
+    expectDragging = false,
+  ) => {
     await touch('touchStart', startX, startY)
     await page.waitForTimeout(120)
     await touch('touchMove', startX + 10, startY + 10)
     await page.waitForTimeout(120)
+    await expect
+      .poll(() => page.evaluate(() => document.body.classList.contains('is-dragging-plan')))
+      .toBe(expectDragging)
+    if (expectDragging) {
+      expect(await page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('')
+    }
     await touch('touchMove', targetX, targetY)
     await page.waitForTimeout(120)
     await touch('touchEnd')
+    await expect
+      .poll(() => page.evaluate(() => document.body.classList.contains('is-dragging-plan')))
+      .toBe(false)
+    expect(await page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('')
   }
 
   await page.evaluate(() => window.scrollTo(0, 400))
@@ -277,6 +293,7 @@ test('on touch, only the plan grip starts a drag', async ({ page }) => {
     gripBox.y + gripBox.height / 2,
     secondTarget.x + secondTarget.width / 2,
     secondTarget.y + 24,
+    true,
   )
 
   await expect(secondDay.getByRole('button', { name: 'View Touch plan' })).toBeVisible()
