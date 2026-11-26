@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.2.0",
   "type": "module",
+  "license": "GPL-3.0-or-later",
   "description": "Jaunt \u2014 a local-first day and trip planner.",
   "scripts": {
     "dev": "vite",
